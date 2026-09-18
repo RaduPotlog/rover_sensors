@@ -1,0 +1,4 @@
+# Third-party sources the sensor payload builds from source, imported with
+# `vcs import src < src/rover_sensors/sensors_deps.repos`. Empty: the RS16 driver (rs_driver) is
+# vendored in rover_rs16_lidar/3rdparty, and the GNSS driver is in-tree.
+repositories: {}
