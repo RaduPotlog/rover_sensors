@@ -54,14 +54,13 @@ ros2 launch rover_sensors_bringup rover_sensors.launch.py namespace:=rover use_l
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `namespace` | `$ROVER_NAMESPACE`, else empty | Namespace and TF prefix. |
-| `use_gps` | `$ROVER_USE_SENSOR_GPS`, else `true` | Start the GNSS driver. It is on by default, so GPS health stays visible even when localization does not fuse GPS. |
+| `use_gps` | `$ROVER_USE_GPS`, else `false` | Start the GNSS driver. The same variable makes the platform's localization fuse GPS. |
 | `use_lidar` | `$ROVER_USE_LIDAR`, else `false` | Start the RS16 driver. Leave it off on rovers with no lidar fitted. |
 | `common_dir_path` | empty | Directory with per-package config overrides (`<dir>/<package>/config/...`). |
 | `log_level` | `INFO` | Logging level. |
 
 Booleans accept `true`/`1`/`yes`/`on` in any case, because the values usually come straight from
-balena variables. `ROVER_USE_GPS` is **not** read here: it selects whether the platform's
-localization fuses GPS.
+balena variables.
 
 ## Adding a sensor
 

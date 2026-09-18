@@ -56,13 +56,12 @@ def generate_launch_description():
         description="Add namespace to all launched nodes.",
     )
 
-    # Runs the GNSS driver and its fix diagnostics. Whether GPS is fused into localization is a
-    # platform decision (ROVER_USE_GPS in rover_ros), so the driver defaults to on: GPS health
-    # stays visible even when it is not fused.
+    # ROVER_USE_GPS is one switch for GPS on the whole rover: this driver here, and the GPS
+    # fusion in the platform's localization.
     use_gps = LaunchConfiguration("use_gps")
     declare_use_gps_arg = DeclareLaunchArgument(
         "use_gps",
-        default_value=EnvironmentVariable("ROVER_USE_SENSOR_GPS", default_value="true"),
+        default_value=EnvironmentVariable("ROVER_USE_GPS", default_value="false"),
         description="Start the RUTX11 NMEA GNSS driver (true/false).",
     )
 

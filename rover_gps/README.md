@@ -93,7 +93,7 @@ ros2 launch rover_gps rover_gps.launch.py namespace:=rover
 | `common_dir_path` | empty | If set, the default config is read from `<common_dir_path>/rover_gps/config/`. |
 | `log_level` | `INFO` | Logging level. |
 
-`rover_sensors_bringup` starts it when `ROVER_USE_SENSOR_GPS` is true (the default).
+`rover_sensors_bringup` starts it when `ROVER_USE_GPS` is true (default `false`).
 
 ## RUTX11 configuration
 
