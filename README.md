@@ -22,9 +22,10 @@ payload can restart, or be replaced, without touching the rest of the rover.
 | `diagnostics` | `diagnostic_msgs/DiagnosticArray` | | `rover_diag_manager` aggregator (`/Rover/GPS`, `/Rover/Lidar`), `IsLidarHealthy` BT condition, mission manager |
 
 The diagnostic status names are part of the contract: `rover_gps_node: GPS fix` and
-`rover_rs16_lidar_node: Lidar status`. The TF frames `gps_link` and `lidar_link` are still
-defined by the platform URDF (`rover_description`), and their poses are set with
-`ROVER_{GPS,LIDAR}_LOCALIZATION_*` / `ROVER_{GPS,LIDAR}_ORIENTATION_*`.
+`rover_rs16_lidar_node: Lidar status`. The TF frames `gps_link` and `lidar_link` are defined by
+the platform URDF (`rover_description`). Their mount poses come from the balena variables
+`ROVER_{GPS,LIDAR}_LOCALIZATION_{X,Y,Z}` / `ROVER_{GPS,LIDAR}_ORIENTATION_{R,P,Y}`, so moving a
+sensor needs no rebuild of any image, only new variable values.
 
 ## Packages
 
@@ -62,7 +63,9 @@ localization fuses GPS.
 2. Include its launch file in `rover_sensors_bringup/launch/rover_sensors.launch.py` behind a
    `ROVER_USE_<SENSOR>` flag, and add it to `rover_sensors_bringup/package.xml`.
 3. Add its diagnostic prefix to `rover_ros/rover_diag_manager/config/diagnostic_aggregator.yaml`.
-4. If it needs a new frame, add the link to `rover_ros/rover_description` (for now).
+4. If it needs a new frame, add the link to `rover_ros/rover_description` once, positioned by
+   new `ROVER_<SENSOR>_LOCALIZATION_*` / `ROVER_<SENSOR>_ORIENTATION_*` variables, following the
+   GPS and lidar pattern. Payload drivers never publish TF themselves.
 5. Third-party sources go in `sensors_deps.repos`, apt dependencies in `package.xml` (rosdep).
 
 ## Build and test
