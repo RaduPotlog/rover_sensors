@@ -22,10 +22,17 @@ payload can restart, or be replaced, without touching the rest of the rover.
 | `diagnostics` | `diagnostic_msgs/DiagnosticArray` | | `rover_diag_manager` aggregator (`/Rover/GPS`, `/Rover/Lidar`), `IsLidarHealthy` BT condition, mission manager |
 
 The diagnostic status names are part of the contract: `rover_gps_node: GPS fix` and
-`rover_rs16_lidar_node: Lidar status`. The TF frames `gps_link` and `lidar_link` are defined by
-the platform URDF (`rover_description`). Their mount poses come from the balena variables
-`ROVER_{GPS,LIDAR}_LOCALIZATION_{X,Y,Z}` / `ROVER_{GPS,LIDAR}_ORIENTATION_{R,P,Y}`, so moving a
-sensor needs no rebuild of any image, only new variable values.
+`rover_rs16_lidar_node: Lidar status`.
+
+**TF is not part of this repo.** The drivers only stamp `<ns>/gps_link` / `<ns>/lidar_link` as
+`frame_id` and never publish a transform. Both frames are defined by the platform URDF
+(`rover_ros/rover_description`) and published by the platform's `robot_state_publisher`. Their
+mount poses come from the balena variables `ROVER_{GPS,LIDAR}_LOCALIZATION_{X,Y,Z}` /
+`ROVER_{GPS,LIDAR}_ORIENTATION_{R,P,Y}`, which **rover-a1-platform** reads
+(`rover_description/launch/rover_load_urdf.launch.py`). Nothing in `rover_sensors` reads them.
+They appear on the `rover-a1-sensors` service only because `docker-compose.yml` carries every
+`ROVER_*` variable on every service. Moving a sensor needs no rebuild, only new variable values
+(which restart the platform container).
 
 ## Packages
 
@@ -64,8 +71,9 @@ localization fuses GPS.
    `ROVER_USE_<SENSOR>` flag, and add it to `rover_sensors_bringup/package.xml`.
 3. Add its diagnostic prefix to `rover_ros/rover_diag_manager/config/diagnostic_aggregator.yaml`.
 4. If it needs a new frame, add the link to `rover_ros/rover_description` once, positioned by
-   new `ROVER_<SENSOR>_LOCALIZATION_*` / `ROVER_<SENSOR>_ORIENTATION_*` variables, following the
-   GPS and lidar pattern. Payload drivers never publish TF themselves.
+   new `ROVER_<SENSOR>_LOCALIZATION_*` / `ROVER_<SENSOR>_ORIENTATION_*` variables read in
+   `rover_description/launch/rover_load_urdf.launch.py`, following the GPS and lidar pattern.
+   Payload drivers never publish TF themselves.
 5. Third-party sources go in `sensors_deps.repos`, apt dependencies in `package.xml` (rosdep).
 
 ## Build and test
