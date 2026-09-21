@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <string>
@@ -73,8 +74,10 @@ rcl_interfaces::msg::ParameterDescriptor describeIntRange(
 }  // namespace
 
 RoverRs16LidarNode::RoverRs16LidarNode(
-    const std::string & node_name, const std::string & ns, const rclcpp::NodeOptions & options)
-: Node(node_name, ns, options)
+    const std::string & node_name, const std::string & ns, const rclcpp::NodeOptions & options,
+    SourceFactory source_factory)
+: LifecycleNode(node_name, ns, options)
+, source_factory_(std::move(source_factory))
 , diagnostic_updater_(std::make_shared<diagnostic_updater::Updater>(this))
 {
     declareParameters();
@@ -82,15 +85,19 @@ RoverRs16LidarNode::RoverRs16LidarNode(
     // Reject inconsistent configuration at startup, not at the first cloud.
     domain::LidarSettings::validate(settings_);
     domain::LidarHealthEvaluator::validate(health_thresholds_);
+
+    if (!source_factory_) {
+        source_factory_ = [](const domain::SensorSettings & sensor) {
+            return std::make_shared<infrastructure::RsDriverLidarSource>(sensor);
+        };
+    }
 }
 
 RoverRs16LidarNode::~RoverRs16LidarNode()
 {
     // The source runs its own thread and calls back into the publishers, so it has to be
     // stopped before any of them is destroyed.
-    if (source_) {
-        source_->stop();
-    }
+    closeSource();
 }
 
 void RoverRs16LidarNode::declareParameters()
@@ -218,7 +225,8 @@ void RoverRs16LidarNode::declareParameters()
             describeIntRange("Warn below this many points per cloud.", 0, 10000000)));
 }
 
-void RoverRs16LidarNode::init(std::shared_ptr<domain::LidarSourcePort> source)
+RoverRs16LidarNode::CallbackReturn RoverRs16LidarNode::on_configure(
+    const rclcpp_lifecycle::State & /*state*/)
 {
     diagnostic_updater_->setHardwareID("RoverLidar");
 
@@ -226,25 +234,18 @@ void RoverRs16LidarNode::init(std::shared_ptr<domain::LidarSourcePort> source)
         health_thresholds_,
         std::make_shared<infrastructure::Ros2LidarHealthPublisher>(diagnostic_updater_));
 
-    auto cloud_publisher = std::make_shared<infrastructure::Ros2PointCloudPublisher>(
-        this, settings_.point_cloud_topic, settings_.frame_id, settings_.publisher_queue_size);
+    cloud_publisher_ = std::make_shared<infrastructure::Ros2PointCloudPublisher>(
+        *this, settings_.point_cloud_topic, settings_.frame_id, settings_.publisher_queue_size);
 
-    std::shared_ptr<domain::LaserScanPublisherPort> scan_publisher;
     std::shared_ptr<domain::ScanProjector> scan_projector;
     if (settings_.scan.enabled) {
-        scan_publisher = std::make_shared<infrastructure::Ros2LaserScanPublisher>(
-            this, settings_.scan_topic, settings_.frame_id, settings_.publisher_queue_size);
+        scan_publisher_ = std::make_shared<infrastructure::Ros2LaserScanPublisher>(
+            *this, settings_.scan_topic, settings_.frame_id, settings_.publisher_queue_size);
         scan_projector = std::make_shared<domain::ScanProjector>(settings_.scan);
     }
 
     stream_lidar_ = std::make_unique<application::StreamLidarUseCase>(
-        std::move(cloud_publisher), std::move(scan_publisher), std::move(scan_projector),
-        monitor_lidar_);
-
-    source_ = source ? std::move(source)
-                     : std::make_shared<infrastructure::RsDriverLidarSource>(settings_.sensor);
-    source_->setFrameCallback([this](const domain::PointCloudFrame & cloud) { onFrame(cloud); });
-    source_->setErrorCallback([this](const std::string & message) { onSourceError(message); });
+        cloud_publisher_, scan_publisher_, std::move(scan_projector), monitor_lidar_);
 
     const auto period = std::chrono::duration<double>(1.0 / publish_frequency_);
     tick_timer_ = create_wall_timer(
@@ -254,13 +255,97 @@ void RoverRs16LidarNode::init(std::shared_ptr<domain::LidarSourcePort> source)
     // Publish the STALE status immediately instead of after the first timer period.
     tickCallback();
 
-    source_->start();
+    return CallbackReturn::SUCCESS;
+}
+
+RoverRs16LidarNode::CallbackReturn RoverRs16LidarNode::on_activate(
+    const rclcpp_lifecycle::State & /*state*/)
+{
+    // Publishers first, so the first frame from the source is never dropped.
+    cloud_publisher_->activate();
+    if (scan_publisher_) {
+        scan_publisher_->activate();
+    }
+
+    try {
+        source_ = source_factory_(settings_.sensor);
+        source_->setFrameCallback(
+            [this](const domain::PointCloudFrame & cloud) { onFrame(cloud); });
+        source_->setErrorCallback([this](const std::string & message) { onSourceError(message); });
+        source_->start();
+    } catch (const std::exception & e) {
+        RCLCPP_ERROR(get_logger(), "Cannot start the RS16: %s", e.what());
+        closeSource();
+        cloud_publisher_->deactivate();
+        if (scan_publisher_) {
+            scan_publisher_->deactivate();
+        }
+        return CallbackReturn::FAILURE;
+    }
 
     const std::string scan_note =
         settings_.scan.enabled ? "; scan on '" + settings_.scan_topic + "'" : std::string();
     RCLCPP_INFO(
         get_logger(), "RS16 streaming on '%s' in frame '%s'%s.",
         settings_.point_cloud_topic.c_str(), settings_.frame_id.c_str(), scan_note.c_str());
+
+    return CallbackReturn::SUCCESS;
+}
+
+RoverRs16LidarNode::CallbackReturn RoverRs16LidarNode::on_deactivate(
+    const rclcpp_lifecycle::State & /*state*/)
+{
+    // Close the source before disabling the publishers, so its thread can never publish into
+    // a deactivated publisher.
+    closeSource();
+
+    cloud_publisher_->deactivate();
+    if (scan_publisher_) {
+        scan_publisher_->deactivate();
+    }
+
+    RCLCPP_INFO(
+        get_logger(), "Deactivated; UDP ports %u/%u released.",
+        static_cast<unsigned>(settings_.sensor.msop_port),
+        static_cast<unsigned>(settings_.sensor.difop_port));
+
+    return CallbackReturn::SUCCESS;
+}
+
+RoverRs16LidarNode::CallbackReturn RoverRs16LidarNode::on_cleanup(
+    const rclcpp_lifecycle::State & /*state*/)
+{
+    closeSource();
+    releasePipeline();
+    return CallbackReturn::SUCCESS;
+}
+
+RoverRs16LidarNode::CallbackReturn RoverRs16LidarNode::on_shutdown(
+    const rclcpp_lifecycle::State & /*state*/)
+{
+    closeSource();
+    releasePipeline();
+    return CallbackReturn::SUCCESS;
+}
+
+void RoverRs16LidarNode::closeSource()
+{
+    if (source_) {
+        source_->stop();
+        source_.reset();
+    }
+}
+
+void RoverRs16LidarNode::releasePipeline()
+{
+    if (tick_timer_) {
+        tick_timer_->cancel();
+        tick_timer_.reset();
+    }
+    stream_lidar_.reset();
+    scan_publisher_.reset();
+    cloud_publisher_.reset();
+    monitor_lidar_.reset();
 }
 
 void RoverRs16LidarNode::onFrame(const domain::PointCloudFrame & cloud)

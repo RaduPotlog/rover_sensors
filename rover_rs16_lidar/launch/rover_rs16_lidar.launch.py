@@ -22,7 +22,7 @@ from launch.substitutions import (
     PathJoinSubstitution,
     PythonExpression,
 )
-from launch_ros.actions import Node
+from launch_ros.actions.lifecycle_node import LifecycleNode
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import ReplaceString
@@ -113,8 +113,10 @@ def generate_launch_description():
     )
 
     # One process, one config file: the RS16 driver, the LaserScan projection and the health
-    # diagnostics all live in this node.
-    rover_rs16_lidar_node = Node(
+    # diagnostics all live in this node. Lifecycle node, brought straight to active: it owns the
+    # MSOP/DIFOP UDP sockets, so deactivating it frees ports 6699/7788 for debugging (see README)
+    # without killing the process.
+    rover_rs16_lidar_node = LifecycleNode(
         package="rover_rs16_lidar",
         executable="rover_rs16_lidar_node",
         name="rover_rs16_lidar_node",
@@ -129,6 +131,7 @@ def generate_launch_description():
             },
         ],
         remappings=[("/diagnostics", "diagnostics")],
+        autostart=True,
         arguments=[
             "--ros-args",
             "--log-level",

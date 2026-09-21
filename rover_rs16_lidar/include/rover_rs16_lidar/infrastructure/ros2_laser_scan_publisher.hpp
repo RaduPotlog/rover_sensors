@@ -18,6 +18,8 @@
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "rclcpp_lifecycle/lifecycle_publisher.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 
 #include "rover_rs16_lidar/domain/laser_scan_frame.hpp"
@@ -31,15 +33,21 @@ class Ros2LaserScanPublisher : public domain::LaserScanPublisherPort
 {
 public:
     Ros2LaserScanPublisher(
-        rclcpp::Node * node, const std::string & topic, const std::string & frame_id,
-        std::size_t queue_size);
+        rclcpp_lifecycle::LifecycleNode & node, const std::string & topic,
+        const std::string & frame_id, std::size_t queue_size);
 
     void publish(const domain::LaserScanFrame & scan) override;
+
+    /** @brief Enables the publisher; call from the node's on_activate. */
+    void activate();
+
+    /** @brief Disables the publisher; call from the node's on_deactivate. */
+    void deactivate();
 
 private:
     std::string frame_id_;
     sensor_msgs::msg::LaserScan message_;
-    rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr publisher_;
+    rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::LaserScan>::SharedPtr publisher_;
 };
 
 }  // namespace rover_rs16_lidar::infrastructure

@@ -125,7 +125,7 @@ int safeInt(std::string_view field_text)
 
     const std::string text(trimmed);
     char * end = nullptr;
-    const long value = std::strtol(text.c_str(), &end, 10);
+    const auto value = std::strtol(text.c_str(), &end, 10);
 
     // Python's int() rejects "1.5" and "8x" outright; so do we.
     if (end != text.c_str() + text.size()) {

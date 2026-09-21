@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <gtest/gtest.h>
+
 #include <cmath>
 #include <limits>
 #include <stdexcept>
-
-#include <gtest/gtest.h>
 
 #include "rover_rs16_lidar/domain/scan_projector.hpp"
 

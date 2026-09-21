@@ -20,6 +20,15 @@ onto `<namespace>/scan`, and this package publishes the same topic from the real
 One node, with a real `name=`. The old stack needed three processes and could not name the
 driver at all, because `rslidar_sdk` created its ROS nodes internally with hardcoded names.
 
+It is a lifecycle node because it owns the MSOP/DIFOP UDP sockets, like `rover_gps_driver`:
+the sensor is opened in `on_activate` and closed in `on_deactivate`. The launch file sets
+`autostart=True`, so it comes up active. `rs_driver` only closes its sockets when the driver
+object is destroyed, so every activate builds a fresh source and every deactivate drops it.
+If the sensor cannot be opened (for example, a port is already taken), activation fails and
+the node stays inactive instead of exiting; the health diagnostics then report a cloud
+timeout. Health diagnostics run from configure to cleanup, so an inactive lidar shows up as
+STALE and then ERROR rather than disappearing.
+
 ## Interfaces
 
 | Direction | Name | Type |
@@ -93,7 +102,7 @@ domain/         PointCloudFrame, LaserScanFrame, LidarSettings, ScanProjector,
 application/    StreamLidarUseCase (frame -> cloud + scan + health), MonitorLidarUseCase
 infrastructure/ RsDriverLidarSource (the only file that includes rs_driver),
                 Ros2PointCloudPublisher, Ros2LaserScanPublisher, Ros2LidarHealthPublisher,
-                RoverRs16LidarNode (composition root)
+                RoverRs16LidarNode (composition root, lifecycle)
 ```
 
 `rover_rs16_lidar_core` links neither ROS nor `rs_driver`, which is what keeps the projection
@@ -117,6 +126,15 @@ The RS16 streams UDP to the rover: **MSOP 6699** (points) and **DIFOP 7788** (de
 The lidar ships on a fixed IP (RoboSense default `192.168.1.200`, destination `192.168.1.102`),
 so the rover needs an address on that subnet and must not firewall those ports. Verify with
 `sudo tcpdump -i <iface> udp port 6699` before blaming the driver.
+
+The node holds both ports while it is active, so deactivate it to listen on them yourself —
+no need to kill it:
+
+```bash
+ros2 lifecycle set /<ns>/rover_rs16_lidar_node deactivate
+nc -ul 6699 | xxd | head
+ros2 lifecycle set /<ns>/rover_rs16_lidar_node activate
+```
 
 Mount pose is **not** set here — `rover_description` places `lidar_link` relative to
 `body_link` from the `ROVER_LIDAR_LOCALIZATION_X/Y/Z` and `ROVER_LIDAR_ORIENTATION_R/P/Y`
@@ -168,8 +186,15 @@ colcon test --packages-select rover_rs16_lidar && colcon test-result --all
 Unit tests cover the health rules, the settings validation and the scan projection against
 `rover_rs16_lidar_core` alone (no ROS, no hardware). The integration test builds the real node
 with a stub `LidarSourcePort` and asserts the published cloud layout, the scan, the
-`publish_scan` switch, the diagnostic name and level, and that the source is stopped on
-shutdown.
+`publish_scan` switch, the diagnostic name and level, that the source is stopped on
+shutdown, and the lifecycle: deactivate drops the source, a failed start leaves the node
+inactive and retryable, and cleanup returns to unconfigured. One test runs the real
+`rs_driver` source on free loopback ports and checks the ports are held while active and
+bindable again after deactivate.
+
+`colcon test` also runs `ament_lint_auto` (uncrustify excluded; see `CPPLINT.cfg` and
+`flake8.ini`) and `scripts/check_layer_purity.sh`, which fails if `domain/` or
+`application/` includes ROS, `rs_driver` or an outer-layer header.
 
 ## Known limitations
 

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <gtest/gtest.h>
+
 #include <memory>
 #include <stdexcept>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 #include "rover_rs16_lidar/application/stream_lidar_use_case.hpp"
 

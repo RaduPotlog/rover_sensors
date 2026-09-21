@@ -147,6 +147,15 @@ protected:
         return done();
     }
 
+    /** @brief Spins for the whole budget; for negative checks where nothing must arrive. */
+    void spinFor(std::chrono::milliseconds duration)
+    {
+        const auto deadline = std::chrono::steady_clock::now() + duration;
+        while (std::chrono::steady_clock::now() < deadline) {
+            executor_.spin_some(20ms);
+        }
+    }
+
     /** @brief Drives configure + activate and waits for the subscriptions to match. */
     void activate()
     {
@@ -257,7 +266,8 @@ TEST_F(RoverGpsDriverNodeTest, IgnoresASentenceWithABadChecksum)
         executor_.spin_some(20ms);
         std::this_thread::sleep_for(10ms);
     }
-    spinUntil([] {return false;}, 300ms);
+    // Negative check: give any (wrongly) accepted fix time to arrive before asserting none did.
+    spinFor(300ms);
 
     EXPECT_TRUE(fixes_.empty());
     EXPECT_GT(driver_node_->statistics().checksum_failed, 0u);

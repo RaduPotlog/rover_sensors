@@ -12,19 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <gtest/gtest.h>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
-#include <gtest/gtest.h>
-
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
@@ -40,6 +48,8 @@ using rover_rs16_lidar::RoverRs16LidarNode;
 using rover_rs16_lidar::domain::LidarPoint;
 using rover_rs16_lidar::domain::LidarSourcePort;
 using rover_rs16_lidar::domain::PointCloudFrame;
+using rover_rs16_lidar::domain::SensorSettings;
+using lifecycle_msgs::msg::State;
 
 /**
  * @brief A sensor that is driven by the test rather than by UDP packets.
@@ -51,7 +61,13 @@ class StubLidarSource : public LidarSourcePort
 public:
     void setFrameCallback(FrameCallback callback) override { on_frame_ = std::move(callback); }
     void setErrorCallback(ErrorCallback callback) override { on_error_ = std::move(callback); }
-    void start() override { started = true; }
+    void start() override
+    {
+        if (fail_on_start) {
+            throw std::runtime_error("UDP port 6699 is already in use");
+        }
+        started = true;
+    }
     void stop() override { stopped = true; }
 
     void emit(const PointCloudFrame & cloud)
@@ -67,6 +83,7 @@ public:
         }
     }
 
+    bool fail_on_start{false};
     bool started{false};
     bool stopped{false};
 
@@ -97,6 +114,47 @@ rclcpp::NodeOptions optionsWith(std::vector<rclcpp::Parameter> overrides)
     return options;
 }
 
+/// True when nobody holds `port`. Deliberately without SO_REUSEADDR, so it fails while
+/// rs_driver (which sets it) still has the port bound.
+bool canBind(std::uint16_t port)
+{
+    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        return false;
+    }
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    ::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+
+    const bool bound = ::bind(fd, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) == 0;
+    ::close(fd);
+    return bound;
+}
+
+/// Two distinct UDP ports the kernel just reported free.
+std::pair<std::uint16_t, std::uint16_t> freeUdpPorts()
+{
+    int fds[2];
+    std::uint16_t ports[2] = {0, 0};
+    for (int i = 0; i < 2; ++i) {
+        fds[i] = ::socket(AF_INET, SOCK_DGRAM, 0);
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_port = 0;
+        ::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+        ::bind(fds[i], reinterpret_cast<const sockaddr *>(&address), sizeof(address));
+        socklen_t length = sizeof(address);
+        ::getsockname(fds[i], reinterpret_cast<sockaddr *>(&address), &length);
+        ports[i] = ntohs(address.sin_port);
+    }
+    // Both held open until now, so the two ports differ.
+    ::close(fds[0]);
+    ::close(fds[1]);
+    return {ports[0], ports[1]};
+}
+
 class RoverRs16LidarNodeTest : public ::testing::Test
 {
 protected:
@@ -116,14 +174,27 @@ protected:
         rclcpp::shutdown();
     }
 
-    /// Builds the node with the stub source already wired in and started.
-    void buildNode(std::vector<rclcpp::Parameter> overrides = {})
+    /// Builds the node, unconfigured, with every activate handed a fresh stub source.
+    void makeNode(std::vector<rclcpp::Parameter> overrides = {})
     {
         node_ = std::make_shared<RoverRs16LidarNode>(
-            "rover_rs16_lidar_node", "/", optionsWith(std::move(overrides)));
-        source_ = std::make_shared<StubLidarSource>();
-        node_->init(source_);
-        executor_->add_node(node_);
+            "rover_rs16_lidar_node", "/", optionsWith(std::move(overrides)),
+            [this](const SensorSettings &) {
+                ++factory_calls_;
+                source_ = std::make_shared<StubLidarSource>();
+                source_->fail_on_start = fail_next_start_;
+                return source_;
+            });
+        executor_->add_node(node_->get_node_base_interface());
+    }
+
+    /// Builds the node and drives it to active, with the stub source wired in and started.
+    void buildNode(std::vector<rclcpp::Parameter> overrides = {})
+    {
+        makeNode(std::move(overrides));
+        ASSERT_EQ(node_->configure().id(), State::PRIMARY_STATE_INACTIVE);
+        ASSERT_EQ(node_->activate().id(), State::PRIMARY_STATE_ACTIVE);
+        ASSERT_TRUE(source_);
     }
 
     /// Spins both nodes so the stub's frames make it across the middleware.
@@ -154,6 +225,8 @@ protected:
     rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
     std::shared_ptr<RoverRs16LidarNode> node_;
     std::shared_ptr<StubLidarSource> source_;
+    int factory_calls_{0};
+    bool fail_next_start_{false};
     rclcpp::Node::SharedPtr observer_;
 };
 
@@ -315,7 +388,7 @@ TEST_F(RoverRs16LidarNodeTest, StopsTheSourceWhenDestroyed)
     buildNode();
     auto source = source_;
 
-    executor_->remove_node(node_);
+    executor_->remove_node(node_->get_node_base_interface());
     node_.reset();
 
     EXPECT_TRUE(source->stopped);
@@ -336,4 +409,84 @@ TEST_F(RoverRs16LidarNodeTest, SurvivesADriverError)
     pump(300ms);
     source_->emit(sampleCloud());
     EXPECT_TRUE(pumpUntil([&received] { return received != nullptr; }));
+}
+
+TEST_F(RoverRs16LidarNodeTest, DeactivateStopsAndDropsTheSource)
+{
+    buildNode();
+    auto first = source_;
+    source_.reset();
+
+    ASSERT_EQ(node_->deactivate().id(), State::PRIMARY_STATE_INACTIVE);
+    EXPECT_TRUE(first->stopped);
+    // rs_driver only closes its sockets when destroyed, so the node must let go of it.
+    EXPECT_EQ(first.use_count(), 1) << "the node still holds the source after deactivate";
+
+    ASSERT_EQ(node_->activate().id(), State::PRIMARY_STATE_ACTIVE);
+    EXPECT_EQ(factory_calls_, 2);
+    ASSERT_TRUE(source_);
+    EXPECT_NE(source_, first);
+    EXPECT_TRUE(source_->started);
+
+    sensor_msgs::msg::PointCloud2::SharedPtr received;
+    auto subscription = observer_->create_subscription<sensor_msgs::msg::PointCloud2>(
+        "/rslidar_points", rclcpp::SensorDataQoS(),
+        [&received](sensor_msgs::msg::PointCloud2::SharedPtr msg) { received = msg; });
+
+    pump(300ms);
+    source_->emit(sampleCloud());
+    EXPECT_TRUE(pumpUntil([&received] { return received != nullptr; }))
+        << "no cloud after a deactivate/activate cycle";
+}
+
+TEST_F(RoverRs16LidarNodeTest, ActivateFailsWhenTheSourceCannotStart)
+{
+    fail_next_start_ = true;
+    makeNode();
+    ASSERT_EQ(node_->configure().id(), State::PRIMARY_STATE_INACTIVE);
+
+    // A port conflict leaves the node inactive instead of crashing the process.
+    EXPECT_EQ(node_->activate().id(), State::PRIMARY_STATE_INACTIVE);
+    ASSERT_TRUE(source_);
+    EXPECT_EQ(source_.use_count(), 1) << "a source that failed to start must not be kept";
+
+    // Once the port is free again, a retry succeeds.
+    fail_next_start_ = false;
+    EXPECT_EQ(node_->activate().id(), State::PRIMARY_STATE_ACTIVE);
+    EXPECT_TRUE(source_->started);
+}
+
+TEST_F(RoverRs16LidarNodeTest, CleanupReturnsToUnconfigured)
+{
+    buildNode();
+
+    ASSERT_EQ(node_->deactivate().id(), State::PRIMARY_STATE_INACTIVE);
+    EXPECT_EQ(node_->cleanup().id(), State::PRIMARY_STATE_UNCONFIGURED);
+    EXPECT_EQ(node_->configure().id(), State::PRIMARY_STATE_INACTIVE);
+}
+
+TEST_F(RoverRs16LidarNodeTest, DeactivateReleasesTheUdpPorts)
+{
+    // The real rs_driver source, on ports no one else is using. No lidar is needed: the
+    // sockets are bound whether or not packets ever arrive.
+    const auto [msop_port, difop_port] = freeUdpPorts();
+    node_ = std::make_shared<RoverRs16LidarNode>(
+        "rover_rs16_lidar_node", "/",
+        optionsWith({rclcpp::Parameter("msop_port", static_cast<int>(msop_port)),
+                     rclcpp::Parameter("difop_port", static_cast<int>(difop_port)),
+                     rclcpp::Parameter("host_address", "127.0.0.1")}));
+
+    ASSERT_EQ(node_->configure().id(), State::PRIMARY_STATE_INACTIVE);
+    ASSERT_EQ(node_->activate().id(), State::PRIMARY_STATE_ACTIVE);
+    // Held while active.
+    EXPECT_FALSE(canBind(msop_port));
+    EXPECT_FALSE(canBind(difop_port));
+
+    ASSERT_EQ(node_->deactivate().id(), State::PRIMARY_STATE_INACTIVE);
+    EXPECT_TRUE(canBind(msop_port)) << "MSOP port not released on deactivate";
+    EXPECT_TRUE(canBind(difop_port)) << "DIFOP port not released on deactivate";
+
+    // And bound again on the next activate.
+    ASSERT_EQ(node_->activate().id(), State::PRIMARY_STATE_ACTIVE);
+    EXPECT_FALSE(canBind(msop_port));
 }

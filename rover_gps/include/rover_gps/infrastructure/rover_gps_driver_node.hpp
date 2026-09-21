@@ -71,9 +71,6 @@ public:
     application::IngestStatistics statistics() const;
 
 private:
-    /** @brief Resolves frame_id against tf_prefix, reproducing the upstream get_frame_id(). */
-    std::string resolveFrameId() const;
-
     void receiveLoop();
 
     /** @brief Splits one datagram into sentences and feeds each to the use case. */

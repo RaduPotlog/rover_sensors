@@ -22,12 +22,12 @@ namespace rover_rs16_lidar::infrastructure
 {
 
 Ros2LaserScanPublisher::Ros2LaserScanPublisher(
-    rclcpp::Node * node, const std::string & topic, const std::string & frame_id,
+    rclcpp_lifecycle::LifecycleNode & node, const std::string & topic, const std::string & frame_id,
     std::size_t queue_size)
 : frame_id_(frame_id)
 {
     message_.header.frame_id = frame_id_;
-    publisher_ = node->create_publisher<sensor_msgs::msg::LaserScan>(
+    publisher_ = node.create_publisher<sensor_msgs::msg::LaserScan>(
         topic, rclcpp::SensorDataQoS().keep_last(queue_size));
 }
 
@@ -52,6 +52,16 @@ void Ros2LaserScanPublisher::publish(const domain::LaserScanFrame & scan)
     message_.intensities.clear();
 
     publisher_->publish(message_);
+}
+
+void Ros2LaserScanPublisher::activate()
+{
+    publisher_->on_activate();
+}
+
+void Ros2LaserScanPublisher::deactivate()
+{
+    publisher_->on_deactivate();
 }
 
 }  // namespace rover_rs16_lidar::infrastructure

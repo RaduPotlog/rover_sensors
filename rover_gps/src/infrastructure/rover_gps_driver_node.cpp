@@ -139,11 +139,6 @@ RoverGpsDriverNode::~RoverGpsDriverNode()
     stopReceiving();
 }
 
-std::string RoverGpsDriverNode::resolveFrameId() const
-{
-    return frame_id_;
-}
-
 application::IngestStatistics RoverGpsDriverNode::statistics() const
 {
     return ingest_ ? ingest_->statistics() : application::IngestStatistics{};
@@ -158,7 +153,7 @@ RoverGpsDriverNode::CallbackReturn RoverGpsDriverNode::on_configure(
         frame_id_.c_str());
 
     publisher_ = std::make_shared<infrastructure::Ros2NmeaPublisher>(
-        *this, resolveFrameId(), time_ref_source_);
+        *this, frame_id_, time_ref_source_);
 
     try {
         ingest_ = std::make_unique<application::IngestNmeaUseCase>(assembler_config_, publisher_);

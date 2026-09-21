@@ -146,3 +146,6 @@ while the driver was the vendored Python package.
 STALE → OK diagnostics and threshold validation. `test/integration/test_rover_gps_driver_node.cpp` drives the driver through its
 lifecycle against a real loopback UDP socket and checks that a datagram becomes a `NavSatFix`
 and that deactivating releases the port. Run them with `colcon test --packages-select rover_gps`.
+`colcon test` also runs `ament_lint_auto` (uncrustify excluded; see `CPPLINT.cfg` and
+`flake8.ini`) and `scripts/check_layer_purity.sh`, which fails if `domain/` or `application/`
+includes ROS, socket headers or an outer-layer header.

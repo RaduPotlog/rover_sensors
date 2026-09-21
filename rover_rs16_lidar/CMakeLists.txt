@@ -11,6 +11,8 @@ endif()
 
 set(PACKAGE_DEPENDENCIES
     rclcpp
+    rclcpp_lifecycle
+    lifecycle_msgs
     diagnostic_msgs
     diagnostic_updater
     rcl_interfaces
@@ -31,7 +33,7 @@ find_library(PCAP_LIBRARY NAMES pcap REQUIRED)
 # warnings out of our -Wall -Wextra -Wpedantic build.
 add_library(rs_driver_vendor INTERFACE)
 target_include_directories(rs_driver_vendor SYSTEM INTERFACE
-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/rs_driver>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/rs_driver>
 )
 # Must stay in step with the feature set rover_rslidar_sdk was built with.
 target_compile_definitions(rs_driver_vendor INTERFACE
@@ -50,7 +52,7 @@ add_library(${PROJECT_NAME}_core STATIC
             src/application/stream_lidar_use_case.cpp
 )
 target_include_directories(${PROJECT_NAME}_core PUBLIC
-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 
 # Infrastructure: the rs_driver adapter and the ROS 2 adapters.
@@ -64,6 +66,8 @@ add_library(${PROJECT_NAME}_ros STATIC
 target_link_libraries(${PROJECT_NAME}_ros ${PROJECT_NAME}_core rs_driver_vendor)
 target_link_libraries(${PROJECT_NAME}_ros
     ${rclcpp_TARGETS}
+    ${rclcpp_lifecycle_TARGETS}
+    ${lifecycle_msgs_TARGETS}
     ${diagnostic_msgs_TARGETS}
     ${diagnostic_updater_TARGETS}
     ${rcl_interfaces_TARGETS}
@@ -73,13 +77,36 @@ target_link_libraries(${PROJECT_NAME}_ros
 add_executable(${PROJECT_NAME}_node src/rover_rs16_lidar.cpp)
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_ros)
 
-install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
 
 install(TARGETS ${PROJECT_NAME}_node DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
+  # Standard ament style/lint gate (cpplint, cppcheck, lint_cmake, xmllint, copyright, ...), as
+  # in rover_ros/rover_hardware_interface. uncrustify is excluded for the same reason as there:
+  # this repo uses 4-space indentation, not ament_cmake_uncrustify's default style.
+  list(APPEND AMENT_LINT_AUTO_EXCLUDE ament_cmake_uncrustify)
+  # The vendored rs_driver keeps upstream's style; lint only our own code.
+  file(GLOB_RECURSE AMENT_LINT_AUTO_FILE_EXCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/*)
+  set(ament_cmake_flake8_CONFIG_FILE ${CMAKE_CURRENT_SOURCE_DIR}/flake8.ini)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+
+  # Domain and application must stay ROS-free (see .claude/rules/clean_architecture.md). Plain
+  # CTest add_test: pass/fail via exit code, no JUnit-XML contract to satisfy.
+  add_test(
+    NAME domain_purity_check
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_layer_purity.sh
+            ${CMAKE_CURRENT_SOURCE_DIR} domain
+  )
+  add_test(
+    NAME application_purity_check
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_layer_purity.sh
+            ${CMAKE_CURRENT_SOURCE_DIR} application
+  )
+
   find_package(ament_cmake_gtest REQUIRED)
 
   ament_add_gtest(test_lidar_health_evaluator test/unit/test_lidar_health_evaluator.cpp)
@@ -96,7 +123,7 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_rover_rs16_lidar_node test/integration/test_rover_rs16_lidar_node.cpp
                   TIMEOUT 60)
-  target_link_libraries(test_rover_rs16_lidar_node ${PROJECT_NAME}_ros)
+  target_link_libraries(test_rover_rs16_lidar_node ${PROJECT_NAME}_ros ${lifecycle_msgs_TARGETS})
 endif()
 
 ament_export_dependencies(${PACKAGE_DEPENDENCIES})

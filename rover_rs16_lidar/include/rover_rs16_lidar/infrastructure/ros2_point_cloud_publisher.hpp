@@ -18,6 +18,8 @@
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "rclcpp_lifecycle/lifecycle_publisher.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
 #include "rover_rs16_lidar/domain/point_cloud_frame.hpp"
@@ -37,16 +39,22 @@ class Ros2PointCloudPublisher : public domain::PointCloudPublisherPort
 {
 public:
     Ros2PointCloudPublisher(
-        rclcpp::Node * node, const std::string & topic, const std::string & frame_id,
-        std::size_t queue_size);
+        rclcpp_lifecycle::LifecycleNode & node, const std::string & topic,
+        const std::string & frame_id, std::size_t queue_size);
 
     void publish(const domain::PointCloudFrame & cloud) override;
+
+    /** @brief Enables the publisher; call from the node's on_activate. */
+    void activate();
+
+    /** @brief Disables the publisher; call from the node's on_deactivate. */
+    void deactivate();
 
 private:
     std::string frame_id_;
     /// Reused between revolutions so the data buffer keeps its capacity.
     sensor_msgs::msg::PointCloud2 message_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
+    rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
 };
 
 }  // namespace rover_rs16_lidar::infrastructure

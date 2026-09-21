@@ -24,19 +24,19 @@ int main(int argc, char ** argv)
     rclcpp::init(argc, argv);
 
     const auto logger = rclcpp::get_logger("rover_rs16_lidar");
+    int exit_code = 0;
 
     try {
+        // Construction can throw on an invalid parameter override. The node starts
+        // unconfigured; the launch file drives it to active.
         auto node = std::make_shared<rover_rs16_lidar::RoverRs16LidarNode>("rover_rs16_lidar_node");
 
-        node->init();
-
-        rclcpp::spin(node);
+        rclcpp::spin(node->get_node_base_interface());
     } catch (const std::exception & e) {
         RCLCPP_FATAL_STREAM(logger, "Caught exception: " << e.what());
-        rclcpp::shutdown();
-        return 1;
+        exit_code = 1;
     }
 
     rclcpp::shutdown();
-    return 0;
+    return exit_code;
 }

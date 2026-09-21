@@ -37,7 +37,7 @@ add_library(${PROJECT_NAME}_core STATIC
             src/application/ingest_nmea_use_case.cpp
 )
 target_include_directories(${PROJECT_NAME}_core PUBLIC
-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 
 # Infrastructure: ROS 2 adapters.
@@ -70,7 +70,7 @@ target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_ros)
 add_executable(${PROJECT_NAME}_driver_node src/rover_gps_driver.cpp)
 target_link_libraries(${PROJECT_NAME}_driver_node ${PROJECT_NAME}_ros)
 
-install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
 
 install(TARGETS ${PROJECT_NAME}_node ${PROJECT_NAME}_driver_node
         DESTINATION lib/${PROJECT_NAME})
@@ -78,6 +78,27 @@ install(TARGETS ${PROJECT_NAME}_node ${PROJECT_NAME}_driver_node
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
+  # Standard ament style/lint gate (cpplint, cppcheck, lint_cmake, xmllint, copyright, ...), as
+  # in rover_ros/rover_hardware_interface. uncrustify is excluded for the same reason as there:
+  # this repo uses 4-space indentation, not ament_cmake_uncrustify's default style.
+  list(APPEND AMENT_LINT_AUTO_EXCLUDE ament_cmake_uncrustify)
+  set(ament_cmake_flake8_CONFIG_FILE ${CMAKE_CURRENT_SOURCE_DIR}/flake8.ini)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+
+  # Domain and application must stay ROS-free (see .claude/rules/clean_architecture.md). Plain
+  # CTest add_test: pass/fail via exit code, no JUnit-XML contract to satisfy.
+  add_test(
+    NAME domain_purity_check
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_layer_purity.sh
+            ${CMAKE_CURRENT_SOURCE_DIR} domain
+  )
+  add_test(
+    NAME application_purity_check
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_layer_purity.sh
+            ${CMAKE_CURRENT_SOURCE_DIR} application
+  )
+
   find_package(ament_cmake_gtest REQUIRED)
 
   ament_add_gtest(test_gps_health_evaluator test/unit/test_gps_health_evaluator.cpp)

@@ -51,7 +51,7 @@ sensor_msgs::msg::PointField makeField(const std::string & name, std::uint32_t o
 }  // namespace
 
 Ros2PointCloudPublisher::Ros2PointCloudPublisher(
-    rclcpp::Node * node, const std::string & topic, const std::string & frame_id,
+    rclcpp_lifecycle::LifecycleNode & node, const std::string & topic, const std::string & frame_id,
     std::size_t queue_size)
 : frame_id_(frame_id)
 {
@@ -67,7 +67,7 @@ Ros2PointCloudPublisher::Ros2PointCloudPublisher(
 
     // Sensor-data QoS: a stale revolution is worth less than a fresh one, and every consumer
     // in the rover (Nav 2 costmaps, pointcloud_crop_box) subscribes best-effort.
-    publisher_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
+    publisher_ = node.create_publisher<sensor_msgs::msg::PointCloud2>(
         topic, rclcpp::SensorDataQoS().keep_last(queue_size));
 }
 
@@ -94,6 +94,16 @@ void Ros2PointCloudPublisher::publish(const domain::PointCloudFrame & cloud)
     }
 
     publisher_->publish(message_);
+}
+
+void Ros2PointCloudPublisher::activate()
+{
+    publisher_->on_activate();
+}
+
+void Ros2PointCloudPublisher::deactivate()
+{
+    publisher_->on_deactivate();
 }
 
 }  // namespace rover_rs16_lidar::infrastructure
