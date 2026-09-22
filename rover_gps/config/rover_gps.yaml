@@ -21,4 +21,7 @@
     fix_timeout_s: 3.0
     warn_horizontal_std_m: 5.0
     error_horizontal_std_m: 20.0
+    # Set by the launch file from ROVER_LOCALIZATION_SOURCE: false for indoor, slam and amcl,
+    # where nothing localizes on GPS, so indoor accuracy (tens of metres) is only a warning.
+    accuracy_required: true
 

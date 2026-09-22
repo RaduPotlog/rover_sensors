@@ -42,6 +42,9 @@ struct GpsHealthThresholds
     double fix_timeout_s{3.0};
     double warn_horizontal_std_m{5.0};
     double error_horizontal_std_m{20.0};
+    // False when nothing localizes on GPS (indoors: ROVER_LOCALIZATION_SOURCE indoor, slam or
+    // amcl). Poor accuracy is then expected, not a fault, so it is only a WARN.
+    bool accuracy_required{true};
 };
 
 struct GpsHealthReport

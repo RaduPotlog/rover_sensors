@@ -75,6 +75,11 @@ RoverGpsNode::RoverGpsNode(
     health_thresholds_.error_horizontal_std_m = declare_parameter(
         "error_horizontal_std_m", health_defaults.error_horizontal_std_m,
         describePositive("Report an error above this horizontal 1-sigma error [m].", 1.0e4));
+    health_thresholds_.accuracy_required = declare_parameter(
+        "accuracy_required", health_defaults.accuracy_required,
+        describe(
+            "False when nothing localizes on GPS (indoors): accuracy above "
+            "error_horizontal_std_m is then a warning, not an error."));
 
     // Reject inconsistent combinations (e.g. warn > error) at startup, not at the first fix.
     domain::GpsHealthEvaluator::validate(health_thresholds_);

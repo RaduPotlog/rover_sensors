@@ -95,6 +95,28 @@ TEST(GpsHealthEvaluatorTest, AccuracyThresholds)
     EXPECT_EQ(unknown.evaluate(100.1).level, HealthLevel::Ok);
 }
 
+TEST(GpsHealthEvaluatorTest, PoorAccuracyIsOnlyWarnWhenNotRequired)
+{
+    // Indoors (80 m, as seen on the rover) with nothing localizing on GPS.
+    GpsHealthThresholds indoor;
+    indoor.accuracy_required = false;
+    GpsHealthEvaluator evaluator(indoor);
+    evaluator.addFix(makeFix(100.0, FixStatus::Fix, 80.0));
+    const auto report = evaluator.evaluate(100.1);
+    EXPECT_EQ(report.level, HealthLevel::Warn);
+    EXPECT_EQ(report.message, "GNSS accuracy too low (not used for localization).");
+}
+
+TEST(GpsHealthEvaluatorTest, TimeoutStaysErrorWhenAccuracyNotRequired)
+{
+    // A dead NMEA link is a device fault indoors too.
+    GpsHealthThresholds indoor;
+    indoor.accuracy_required = false;
+    GpsHealthEvaluator evaluator(indoor);
+    evaluator.addFix(makeFix(100.0));
+    EXPECT_EQ(evaluator.evaluate(110.0).level, HealthLevel::Error);
+}
+
 TEST(GpsHealthEvaluatorTest, LowRateIsWarn)
 {
     GpsHealthThresholds thresholds;

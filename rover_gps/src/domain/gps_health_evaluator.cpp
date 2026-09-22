@@ -100,8 +100,10 @@ GpsHealthReport GpsHealthEvaluator::evaluate(double now_s) const
         report.level = HealthLevel::Warn;
         report.message = "No GNSS fix.";
     } else if (!std::isnan(std_m) && std_m > thresholds_.error_horizontal_std_m) {
-        report.level = HealthLevel::Error;
-        report.message = "GNSS accuracy too low.";
+        report.level = thresholds_.accuracy_required ? HealthLevel::Error : HealthLevel::Warn;
+        report.message = thresholds_.accuracy_required ?
+            "GNSS accuracy too low." :
+            "GNSS accuracy too low (not used for localization).";
     } else if (!std::isnan(std_m) && std_m > thresholds_.warn_horizontal_std_m) {
         report.level = HealthLevel::Warn;
         report.message = "GNSS accuracy degraded.";

@@ -24,6 +24,7 @@ from launch.substitutions import (
 )
 from launch_ros.actions import Node
 from launch_ros.actions.lifecycle_node import LifecycleNode
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -70,6 +71,23 @@ def generate_launch_description():
         description="Specify the path to the rover GPS configuration file.",
     )
 
+    # Poor GNSS accuracy is only an error when something localizes on GPS. With the lidar
+    # sources (indoor, slam, amcl) the rover is usually indoors, where tens of metres of error
+    # are normal - reporting them as ERROR would turn the whole rover red for nothing.
+    gps_accuracy_required = LaunchConfiguration("gps_accuracy_required")
+    declare_gps_accuracy_required_arg = DeclareLaunchArgument(
+        "gps_accuracy_required",
+        default_value=PythonExpression(
+            [
+                "'",
+                EnvironmentVariable("ROVER_LOCALIZATION_SOURCE", default_value=""),
+                "'.strip().lower() not in ('indoor', 'slam', 'amcl')",
+            ]
+        ),
+        description="Report poor GNSS accuracy as an error (true) or a warning (false). "
+        "Defaults to false when ROVER_LOCALIZATION_SOURCE is indoor, slam or amcl.",
+    )
+
     # Lifecycle node, brought straight to active: it owns the UDP socket, so deactivating it
     # frees port 10110 for debugging (see README) without killing the process.
     rover_gps_driver_node = LifecycleNode(
@@ -98,7 +116,10 @@ def generate_launch_description():
         executable="rover_gps_node",
         name="rover_gps_node",
         namespace=namespace,
-        parameters=[rover_gps_config_path],
+        parameters=[
+            rover_gps_config_path,
+            {"accuracy_required": ParameterValue(gps_accuracy_required, value_type=bool)},
+        ],
         remappings=[("/diagnostics", "diagnostics")],
         arguments=[
             "--ros-args",
@@ -113,6 +134,7 @@ def generate_launch_description():
         declare_log_level_arg,
         declare_namespace_arg,
         declare_rover_gps_config_path_arg,
+        declare_gps_accuracy_required_arg,
         rover_gps_driver_node,
         rover_gps_node,
     ]
