@@ -38,13 +38,14 @@ struct GpsHealthThresholds
     double expected_rate_hz{1.0};
     // Rate below expected_rate_hz * min_rate_ratio is reported as WARN.
     double min_rate_ratio{0.5};
-    // No fix message for this long is an ERROR (NMEA link lost).
+    // No fix message for this long is an ERROR (NMEA link lost), a WARN without gps_required.
     double fix_timeout_s{3.0};
     double warn_horizontal_std_m{5.0};
     double error_horizontal_std_m{20.0};
     // False when nothing localizes on GPS (indoors: ROVER_LOCALIZATION_SOURCE indoor, slam or
-    // amcl). Poor accuracy is then expected, not a fault, so it is only a WARN.
-    bool accuracy_required{true};
+    // amcl). Poor accuracy or a GPS that is switched off is then not a fault, so neither missing
+    // data nor a timeout nor low accuracy goes beyond WARN.
+    bool gps_required{true};
 };
 
 struct GpsHealthReport

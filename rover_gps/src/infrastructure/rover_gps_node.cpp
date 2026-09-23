@@ -68,18 +68,20 @@ RoverGpsNode::RoverGpsNode(
         describePositive("Warn below expected_rate_hz * min_rate_ratio.", 1.0));
     health_thresholds_.fix_timeout_s = declare_parameter(
         "fix_timeout_s", health_defaults.fix_timeout_s,
-        describePositive("Report an error when no fix arrives for this long [s].", 600.0));
+        describePositive(
+            "Report an error (a warning without gps_required) when no fix arrives for this "
+            "long [s].", 600.0));
     health_thresholds_.warn_horizontal_std_m = declare_parameter(
         "warn_horizontal_std_m", health_defaults.warn_horizontal_std_m,
         describePositive("Warn above this horizontal 1-sigma error [m].", 1.0e4));
     health_thresholds_.error_horizontal_std_m = declare_parameter(
         "error_horizontal_std_m", health_defaults.error_horizontal_std_m,
         describePositive("Report an error above this horizontal 1-sigma error [m].", 1.0e4));
-    health_thresholds_.accuracy_required = declare_parameter(
-        "accuracy_required", health_defaults.accuracy_required,
+    health_thresholds_.gps_required = declare_parameter(
+        "gps_required", health_defaults.gps_required,
         describe(
-            "False when nothing localizes on GPS (indoors): accuracy above "
-            "error_horizontal_std_m is then a warning, not an error."));
+            "False when nothing localizes on GPS (indoors): no data, a data timeout and "
+            "accuracy above error_horizontal_std_m are then warnings, not errors."));
 
     // Reject inconsistent combinations (e.g. warn > error) at startup, not at the first fix.
     domain::GpsHealthEvaluator::validate(health_thresholds_);

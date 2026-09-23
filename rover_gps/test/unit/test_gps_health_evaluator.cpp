@@ -99,7 +99,7 @@ TEST(GpsHealthEvaluatorTest, PoorAccuracyIsOnlyWarnWhenNotRequired)
 {
     // Indoors (80 m, as seen on the rover) with nothing localizing on GPS.
     GpsHealthThresholds indoor;
-    indoor.accuracy_required = false;
+    indoor.gps_required = false;
     GpsHealthEvaluator evaluator(indoor);
     evaluator.addFix(makeFix(100.0, FixStatus::Fix, 80.0));
     const auto report = evaluator.evaluate(100.1);
@@ -107,14 +107,27 @@ TEST(GpsHealthEvaluatorTest, PoorAccuracyIsOnlyWarnWhenNotRequired)
     EXPECT_EQ(report.message, "GNSS accuracy too low (not used for localization).");
 }
 
-TEST(GpsHealthEvaluatorTest, TimeoutStaysErrorWhenAccuracyNotRequired)
+TEST(GpsHealthEvaluatorTest, TimeoutIsOnlyWarnWhenNotRequired)
 {
-    // A dead NMEA link is a device fault indoors too.
+    // Indoors the GPS may be switched off on the router; the stream then simply stops.
     GpsHealthThresholds indoor;
-    indoor.accuracy_required = false;
+    indoor.gps_required = false;
     GpsHealthEvaluator evaluator(indoor);
     evaluator.addFix(makeFix(100.0));
-    EXPECT_EQ(evaluator.evaluate(110.0).level, HealthLevel::Error);
+    const auto report = evaluator.evaluate(110.0);
+    EXPECT_EQ(report.level, HealthLevel::Warn);
+    EXPECT_EQ(report.message, "GPS data timeout (not used for localization).");
+}
+
+TEST(GpsHealthEvaluatorTest, NoDataIsOnlyWarnWhenNotRequired)
+{
+    // GPS already switched off at boot: no fix ever arrives.
+    GpsHealthThresholds indoor;
+    indoor.gps_required = false;
+    GpsHealthEvaluator evaluator(indoor);
+    const auto report = evaluator.evaluate(100.0);
+    EXPECT_EQ(report.level, HealthLevel::Warn);
+    EXPECT_EQ(report.message, "No GPS data (not used for localization).");
 }
 
 TEST(GpsHealthEvaluatorTest, LowRateIsWarn)

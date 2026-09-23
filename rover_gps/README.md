@@ -54,9 +54,9 @@ Four things are fixed rather than reproduced:
 
 | Level | When |
 |-------|------|
-| STALE | No fix message received yet. |
-| ERROR | No fix message for `fix_timeout_s` (NMEA link lost), or horizontal std > `error_horizontal_std_m` while `accuracy_required`. |
-| WARN | Receiver reports no fix, horizontal std > `warn_horizontal_std_m` (or > `error_horizontal_std_m` without `accuracy_required`: "not used for localization"), or rate < `expected_rate_hz * min_rate_ratio`. |
+| STALE | No fix message received yet, while `gps_required`. |
+| ERROR | While `gps_required`: no fix message for `fix_timeout_s` (NMEA link lost), or horizontal std > `error_horizontal_std_m`. |
+| WARN | Receiver reports no fix, horizontal std > `warn_horizontal_std_m`, or rate < `expected_rate_hz * min_rate_ratio`. Without `gps_required`, the STALE and ERROR cases above are WARN too, with "(not used for localization)" in the message - e.g. the GPS switched off on the RUTX11. |
 | OK | Otherwise. |
 
 Values shown: fix status, latitude/longitude/altitude, horizontal std (from the `NavSatFix`
@@ -68,9 +68,9 @@ covariance, which the driver computes from HDOP), rate, age and fix count.
 |------|---------|-------------|
 | `expected_rate_hz` | `1.0` | GGA rate configured on the RUTX11. |
 | `min_rate_ratio` | `0.5` | WARN below `expected_rate_hz * min_rate_ratio`. |
-| `fix_timeout_s` | `3.0` | ERROR when no fix arrives for this long. |
+| `fix_timeout_s` | `3.0` | ERROR (WARN without `gps_required`) when no fix arrives for this long. |
 | `warn_horizontal_std_m` / `error_horizontal_std_m` | `5.0` / `20.0` | Accuracy thresholds [m]. |
-| `accuracy_required` | `true` | `false` makes accuracy beyond `error_horizontal_std_m` a WARN. The launch file sets it from `ROVER_LOCALIZATION_SOURCE`. |
+| `gps_required` | `true` | `false` caps the diagnostic at WARN: no data, data timeout and accuracy beyond `error_horizontal_std_m`. The launch file sets it from `ROVER_LOCALIZATION_SOURCE`. |
 
 All parameters are read-only; invalid values or `warn > error` stop the node at startup.
 
@@ -93,7 +93,7 @@ ros2 launch rover_gps rover_gps.launch.py namespace:=rover
 | `rover_gps_config_path` | `config/rover_gps.yaml` | Parameter file for both nodes. |
 | `common_dir_path` | empty | If set, the default config is read from `<common_dir_path>/rover_gps/config/`. |
 | `log_level` | `INFO` | Logging level. |
-| `gps_accuracy_required` | `false` if `$ROVER_LOCALIZATION_SOURCE` is `indoor`, `slam` or `amcl`, else `true` | Sets `accuracy_required`. Nothing localizes on GPS with the lidar sources and the rover is usually indoors, where tens of metres of error are normal. |
+| `gps_required` | `false` if `$ROVER_LOCALIZATION_SOURCE` is `indoor`, `slam` or `amcl`, else `true` | Sets `gps_required`. Nothing localizes on GPS with the lidar sources and the rover is usually indoors, where tens of metres of error are normal and the GPS may be switched off. |
 
 `rover_sensors_bringup` starts it when `ROVER_USE_GPS` is true (default `false`).
 

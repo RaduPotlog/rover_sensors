@@ -81,8 +81,11 @@ GpsHealthReport GpsHealthEvaluator::evaluate(double now_s) const
     report.fix_count = fix_count_;
 
     if (!last_fix_) {
-        report.level = HealthLevel::Stale;
-        report.message = "No GPS data yet.";
+        // Without GPS in the localization, a receiver that is off from boot is not a fault.
+        report.level = thresholds_.gps_required ? HealthLevel::Stale : HealthLevel::Warn;
+        report.message = thresholds_.gps_required ?
+            "No GPS data yet." :
+            "No GPS data (not used for localization).";
         return report;
     }
 
@@ -94,14 +97,16 @@ GpsHealthReport GpsHealthEvaluator::evaluate(double now_s) const
     const double std_m = last_fix_->horizontal_std_m;
 
     if (report.age_s > thresholds_.fix_timeout_s) {
-        report.level = HealthLevel::Error;
-        report.message = "GPS data timeout.";
+        report.level = thresholds_.gps_required ? HealthLevel::Error : HealthLevel::Warn;
+        report.message = thresholds_.gps_required ?
+            "GPS data timeout." :
+            "GPS data timeout (not used for localization).";
     } else if (!hasFix(last_fix_->status)) {
         report.level = HealthLevel::Warn;
         report.message = "No GNSS fix.";
     } else if (!std::isnan(std_m) && std_m > thresholds_.error_horizontal_std_m) {
-        report.level = thresholds_.accuracy_required ? HealthLevel::Error : HealthLevel::Warn;
-        report.message = thresholds_.accuracy_required ?
+        report.level = thresholds_.gps_required ? HealthLevel::Error : HealthLevel::Warn;
+        report.message = thresholds_.gps_required ?
             "GNSS accuracy too low." :
             "GNSS accuracy too low (not used for localization).";
     } else if (!std::isnan(std_m) && std_m > thresholds_.warn_horizontal_std_m) {
