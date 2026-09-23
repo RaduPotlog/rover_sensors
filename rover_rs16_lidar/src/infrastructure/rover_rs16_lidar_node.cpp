@@ -216,6 +216,10 @@ void RoverRs16LidarNode::declareParameters()
     health_thresholds_.cloud_timeout_s = declare_parameter(
         "cloud_timeout_s", health_defaults.cloud_timeout_s,
         describePositive("Report an error when no cloud arrives for this long [s].", 600.0));
+    health_thresholds_.startup_grace_s = declare_parameter(
+        "startup_grace_s", health_defaults.startup_grace_s,
+        describePositive(
+            "Report an error when no cloud has arrived this long after configure [s].", 600.0));
     publish_frequency_ = declare_parameter(
         "publish_frequency", 1.0,
         describePositive("Diagnostics evaluation rate [Hz].", 100.0));
@@ -232,7 +236,8 @@ RoverRs16LidarNode::CallbackReturn RoverRs16LidarNode::on_configure(
 
     monitor_lidar_ = std::make_shared<application::MonitorLidarUseCase>(
         health_thresholds_,
-        std::make_shared<infrastructure::Ros2LidarHealthPublisher>(diagnostic_updater_));
+        std::make_shared<infrastructure::Ros2LidarHealthPublisher>(diagnostic_updater_),
+        nowSeconds());
 
     cloud_publisher_ = std::make_shared<infrastructure::Ros2PointCloudPublisher>(
         *this, settings_.point_cloud_topic, settings_.frame_id, settings_.publisher_queue_size);

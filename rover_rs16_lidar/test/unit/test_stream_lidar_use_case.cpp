@@ -76,7 +76,8 @@ PointCloudFrame twoPointCloud()
 TEST(StreamLidarUseCase, RequiresACloudPublisherAndAMonitor)
 {
     auto monitor = std::make_shared<MonitorLidarUseCase>(
-        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>());
+        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>(),
+        0.0);
 
     EXPECT_THROW(
         StreamLidarUseCase(nullptr, nullptr, nullptr, monitor), std::invalid_argument);
@@ -88,7 +89,8 @@ TEST(StreamLidarUseCase, RequiresACloudPublisherAndAMonitor)
 TEST(StreamLidarUseCase, RefusesToProjectWithoutSomewhereToPublishTheScan)
 {
     auto monitor = std::make_shared<MonitorLidarUseCase>(
-        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>());
+        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>(),
+        0.0);
 
     EXPECT_THROW(
         StreamLidarUseCase(
@@ -102,7 +104,7 @@ TEST(StreamLidarUseCase, PublishesCloudAndScanAndFeedsTheMonitor)
     auto scans = std::make_shared<SpyScanPublisher>();
     auto health = std::make_shared<SpyHealthPublisher>();
     auto monitor = std::make_shared<MonitorLidarUseCase>(
-        rover_rs16_lidar::domain::LidarHealthThresholds{}, health);
+        rover_rs16_lidar::domain::LidarHealthThresholds{}, health, 0.0);
 
     StreamLidarUseCase use_case(clouds, scans, defaultProjector(), monitor);
     use_case.onFrame(twoPointCloud(), 42.0);
@@ -124,7 +126,8 @@ TEST(StreamLidarUseCase, SkipsTheProjectionWhenNoScanIsWanted)
     auto clouds = std::make_shared<SpyCloudPublisher>();
     auto scans = std::make_shared<SpyScanPublisher>();
     auto monitor = std::make_shared<MonitorLidarUseCase>(
-        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>());
+        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>(),
+        0.0);
 
     StreamLidarUseCase use_case(clouds, scans, nullptr, monitor);
     use_case.onFrame(twoPointCloud(), 1.0);
@@ -136,7 +139,8 @@ TEST(StreamLidarUseCase, SkipsTheProjectionWhenNoScanIsWanted)
 TEST(StreamLidarUseCase, UsesArrivalTimeRatherThanTheCloudStamp)
 {
     auto monitor = std::make_shared<MonitorLidarUseCase>(
-        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>());
+        rover_rs16_lidar::domain::LidarHealthThresholds{}, std::make_shared<SpyHealthPublisher>(),
+        0.0);
     StreamLidarUseCase use_case(
         std::make_shared<SpyCloudPublisher>(), nullptr, nullptr, monitor);
 

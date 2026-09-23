@@ -53,5 +53,6 @@
     expected_rate_hz: 10.0
     min_rate_ratio: 0.5      # below 5 Hz is a warning
     cloud_timeout_s: 2.0     # no cloud for this long is an error (lidar unplugged / wrong subnet)
+    startup_grace_s: 10.0    # no cloud at all this long after start is an error (lidar missing at boot)
     min_points_warn: 1000    # a nearly empty cloud usually means a blocked or blinded sensor
     publish_frequency: 1.0

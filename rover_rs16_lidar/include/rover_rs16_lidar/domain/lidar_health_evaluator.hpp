@@ -47,6 +47,9 @@ struct LidarHealthThresholds
     double min_rate_ratio{0.5};
     // No cloud for this long is an ERROR (lidar unplugged, or the rover is off its subnet).
     double cloud_timeout_s{2.0};
+    // No cloud at all this long after start is an ERROR too, instead of staying STALE
+    // forever (lidar missing at power-up). Leaves the sensor time to boot.
+    double startup_grace_s{10.0};
     // A cloud this sparse usually means a blocked or blinded sensor.
     std::uint32_t min_points_warn{1000};
 };
@@ -67,7 +70,8 @@ struct LidarHealthReport
 class LidarHealthEvaluator
 {
 public:
-    explicit LidarHealthEvaluator(LidarHealthThresholds thresholds);
+    /** @param start_s When monitoring started, on the same clock as `now_s` and arrivals. */
+    LidarHealthEvaluator(LidarHealthThresholds thresholds, double start_s);
 
     /** @throws std::invalid_argument when a threshold is not positive. */
     static void validate(const LidarHealthThresholds & thresholds);
@@ -80,6 +84,7 @@ private:
     double rateHz(double now_s) const;
 
     LidarHealthThresholds thresholds_;
+    double start_s_;
     std::optional<CloudSample> last_cloud_;
     std::deque<double> arrival_times_s_;
     std::uint64_t cloud_count_{0};

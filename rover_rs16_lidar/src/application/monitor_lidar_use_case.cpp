@@ -23,8 +23,9 @@ namespace rover_rs16_lidar::application
 
 MonitorLidarUseCase::MonitorLidarUseCase(
     domain::LidarHealthThresholds thresholds,
-    std::shared_ptr<domain::LidarHealthPublisherPort> publisher)
-: evaluator_(thresholds), publisher_(std::move(publisher))
+    std::shared_ptr<domain::LidarHealthPublisherPort> publisher,
+    double start_s)
+: evaluator_(thresholds, start_s), publisher_(std::move(publisher))
 {
     if (!publisher_) {
         throw std::invalid_argument("MonitorLidarUseCase requires a health publisher.");

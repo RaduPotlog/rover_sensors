@@ -27,8 +27,8 @@ constexpr double kRateWindowPeriods = 10.0;
 constexpr double kMinRateWindowS = 1.0;
 }  // namespace
 
-LidarHealthEvaluator::LidarHealthEvaluator(LidarHealthThresholds thresholds)
-: thresholds_(thresholds)
+LidarHealthEvaluator::LidarHealthEvaluator(LidarHealthThresholds thresholds, double start_s)
+: thresholds_(thresholds), start_s_(start_s)
 {
     validate(thresholds_);
 }
@@ -36,7 +36,7 @@ LidarHealthEvaluator::LidarHealthEvaluator(LidarHealthThresholds thresholds)
 void LidarHealthEvaluator::validate(const LidarHealthThresholds & thresholds)
 {
     if (!(thresholds.expected_rate_hz > 0.0) || !(thresholds.min_rate_ratio > 0.0) ||
-        !(thresholds.cloud_timeout_s > 0.0))
+        !(thresholds.cloud_timeout_s > 0.0) || !(thresholds.startup_grace_s > 0.0))
     {
         throw std::invalid_argument("Lidar health thresholds must be positive.");
     }
@@ -74,8 +74,10 @@ LidarHealthReport LidarHealthEvaluator::evaluate(double now_s) const
     report.cloud_count = cloud_count_;
 
     if (!last_cloud_) {
-        report.level = HealthLevel::Stale;
-        report.message = "No lidar data yet.";
+        // Past the grace period a lidar that never streamed is as broken as one that stopped.
+        const bool grace_over = now_s - start_s_ > thresholds_.startup_grace_s;
+        report.level = grace_over ? HealthLevel::Error : HealthLevel::Stale;
+        report.message = grace_over ? "No lidar data since startup." : "No lidar data yet.";
         return report;
     }
 

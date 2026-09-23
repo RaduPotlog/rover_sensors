@@ -34,7 +34,8 @@ class MonitorLidarUseCase
 public:
     MonitorLidarUseCase(
         domain::LidarHealthThresholds thresholds,
-        std::shared_ptr<domain::LidarHealthPublisherPort> publisher);
+        std::shared_ptr<domain::LidarHealthPublisherPort> publisher,
+        double start_s);
 
     void onCloud(const domain::CloudSample & cloud);
 

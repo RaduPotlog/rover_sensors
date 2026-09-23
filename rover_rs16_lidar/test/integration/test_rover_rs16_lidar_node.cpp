@@ -383,6 +383,29 @@ TEST_F(RoverRs16LidarNodeTest, ReportsStaleBeforeAnyFrameAndOkAfterOne)
     EXPECT_EQ(statuses.back().level, diagnostic_msgs::msg::DiagnosticStatus::WARN);
 }
 
+TEST_F(RoverRs16LidarNodeTest, ReportsErrorWhenNoFrameArrivesWithinStartupGrace)
+{
+    // A lidar missing at power-up must not stay STALE forever.
+    buildNode({rclcpp::Parameter("publish_frequency", 20.0),
+               rclcpp::Parameter("diagnostic_updater.period", 0.1),
+               rclcpp::Parameter("startup_grace_s", 0.3)});
+
+    std::vector<diagnostic_msgs::msg::DiagnosticStatus> statuses;
+    auto subscription = observer_->create_subscription<diagnostic_msgs::msg::DiagnosticArray>(
+        "/diagnostics", 10,
+        [&statuses](diagnostic_msgs::msg::DiagnosticArray::SharedPtr msg) {
+            for (const auto & status : msg->status) {
+                statuses.push_back(status);
+            }
+        });
+
+    pump(800ms);
+
+    ASSERT_FALSE(statuses.empty()) << "no diagnostics published";
+    EXPECT_EQ(statuses.back().level, diagnostic_msgs::msg::DiagnosticStatus::ERROR);
+    EXPECT_EQ(statuses.back().message, "No lidar data since startup.");
+}
+
 TEST_F(RoverRs16LidarNodeTest, StopsTheSourceWhenDestroyed)
 {
     buildNode();

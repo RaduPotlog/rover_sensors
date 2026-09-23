@@ -36,6 +36,7 @@ LidarHealthThresholds defaultThresholds()
     thresholds.expected_rate_hz = 10.0;
     thresholds.min_rate_ratio = 0.5;
     thresholds.cloud_timeout_s = 2.0;
+    thresholds.startup_grace_s = 10.0;
     thresholds.min_points_warn = 1000;
     return thresholds;
 }
@@ -71,7 +72,7 @@ public:
 
 TEST(LidarHealthEvaluatorTest, StaleBeforeAnyCloud)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
 
     const auto report = evaluator.evaluate(0.0);
 
@@ -80,9 +81,44 @@ TEST(LidarHealthEvaluatorTest, StaleBeforeAnyCloud)
     EXPECT_EQ(report.cloud_count, 0u);
 }
 
+TEST(LidarHealthEvaluatorTest, StaleWithinStartupGrace)
+{
+    // Started at t = 100 (the rover clock is never 0); 10 s grace.
+    LidarHealthEvaluator evaluator(defaultThresholds(), 100.0);
+
+    const auto report = evaluator.evaluate(109.0);
+
+    EXPECT_EQ(report.level, HealthLevel::Stale);
+    EXPECT_EQ(report.message, "No lidar data yet.");
+}
+
+TEST(LidarHealthEvaluatorTest, ErrorWhenNoCloudSinceStartup)
+{
+    // A lidar missing at power-up must end up as ERROR like an unplugged one, not stay STALE.
+    LidarHealthEvaluator evaluator(defaultThresholds(), 100.0);
+
+    const auto report = evaluator.evaluate(111.0);
+
+    EXPECT_EQ(report.level, HealthLevel::Error);
+    EXPECT_EQ(report.message, "No lidar data since startup.");
+    EXPECT_FALSE(report.has_data);
+}
+
+TEST(LidarHealthEvaluatorTest, OkWhenFirstCloudArrivesAfterStartupGrace)
+{
+    LidarHealthEvaluator evaluator(defaultThresholds(), 100.0);
+    ASSERT_EQ(evaluator.evaluate(111.0).level, HealthLevel::Error);
+
+    for (int i = 1; i <= 20; ++i) {
+        evaluator.addCloud(cloudAt(111.0 + i * 0.1));
+    }
+
+    EXPECT_EQ(evaluator.evaluate(113.0).level, HealthLevel::Ok);
+}
+
 TEST(LidarHealthEvaluatorTest, OkOnNominalStream)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     feedHealthyStream(evaluator, 20);
 
     const auto report = evaluator.evaluate(2.0);
@@ -96,7 +132,7 @@ TEST(LidarHealthEvaluatorTest, OkOnNominalStream)
 TEST(LidarHealthEvaluatorTest, SingleCloudIsOkNotSlow)
 {
     // One cloud gives no rate yet; that must not be reported as "rate too low".
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     evaluator.addCloud(cloudAt(1.0));
 
     const auto report = evaluator.evaluate(1.0);
@@ -107,7 +143,7 @@ TEST(LidarHealthEvaluatorTest, SingleCloudIsOkNotSlow)
 
 TEST(LidarHealthEvaluatorTest, ErrorWhenStreamTimesOut)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     feedHealthyStream(evaluator, 20);
 
     // Last cloud at t = 2.0, evaluated well past cloud_timeout_s.
@@ -119,7 +155,7 @@ TEST(LidarHealthEvaluatorTest, ErrorWhenStreamTimesOut)
 
 TEST(LidarHealthEvaluatorTest, TimeoutOutranksSparseCloud)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     evaluator.addCloud(cloudAt(1.0, 5));
 
     const auto report = evaluator.evaluate(10.0);
@@ -129,7 +165,7 @@ TEST(LidarHealthEvaluatorTest, TimeoutOutranksSparseCloud)
 
 TEST(LidarHealthEvaluatorTest, WarnOnSparseCloud)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     for (int i = 1; i <= 20; ++i) {
         evaluator.addCloud(cloudAt(i * 0.1, 10));
     }
@@ -142,7 +178,7 @@ TEST(LidarHealthEvaluatorTest, WarnOnSparseCloud)
 
 TEST(LidarHealthEvaluatorTest, WarnOnSlowStream)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     // 3 Hz against an expected 10 Hz, i.e. below the 0.5 ratio, but inside cloud_timeout_s.
     feedHealthyStream(evaluator, 6, 1.0 / 3.0);
 
@@ -154,7 +190,7 @@ TEST(LidarHealthEvaluatorTest, WarnOnSlowStream)
 
 TEST(LidarHealthEvaluatorTest, RateDecaysWhileStreamIsPaused)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     feedHealthyStream(evaluator, 20);
 
     // Measured up to `now`, so a stalled stream must not keep reporting its old rate.
@@ -163,7 +199,7 @@ TEST(LidarHealthEvaluatorTest, RateDecaysWhileStreamIsPaused)
 
 TEST(LidarHealthEvaluatorTest, RecoversAfterTimeout)
 {
-    LidarHealthEvaluator evaluator(defaultThresholds());
+    LidarHealthEvaluator evaluator(defaultThresholds(), 0.0);
     feedHealthyStream(evaluator, 20);
     ASSERT_EQ(evaluator.evaluate(5.0).level, HealthLevel::Error);
 
@@ -184,13 +220,18 @@ TEST(LidarHealthEvaluatorTest, RejectsNonPositiveThresholds)
     thresholds.cloud_timeout_s = -1.0;
     EXPECT_THROW(LidarHealthEvaluator::validate(thresholds), std::invalid_argument);
 
+    thresholds = defaultThresholds();
+    thresholds.startup_grace_s = 0.0;
+    EXPECT_THROW(LidarHealthEvaluator::validate(thresholds), std::invalid_argument);
+
     EXPECT_NO_THROW(LidarHealthEvaluator::validate(defaultThresholds()));
 }
 
 TEST(MonitorLidarUseCaseTest, PublishesEvaluatedReport)
 {
     auto publisher = std::make_shared<RecordingPublisher>();
-    rover_rs16_lidar::application::MonitorLidarUseCase use_case(defaultThresholds(), publisher);
+    rover_rs16_lidar::application::MonitorLidarUseCase use_case(
+        defaultThresholds(), publisher, 0.0);
 
     use_case.publishHealth(0.0);
     ASSERT_EQ(publisher->reports.size(), 1u);
@@ -209,6 +250,6 @@ TEST(MonitorLidarUseCaseTest, PublishesEvaluatedReport)
 TEST(MonitorLidarUseCaseTest, RequiresAPublisher)
 {
     EXPECT_THROW(
-        rover_rs16_lidar::application::MonitorLidarUseCase(defaultThresholds(), nullptr),
+        rover_rs16_lidar::application::MonitorLidarUseCase(defaultThresholds(), nullptr, 0.0),
         std::invalid_argument);
 }

@@ -46,8 +46,8 @@ consumers see the cloud the way they always have.
 
 | Level | When |
 |-------|------|
-| STALE | No point cloud received yet. |
-| ERROR | No point cloud for `cloud_timeout_s` — lidar unpowered, unplugged, or the rover is not on its subnet. |
+| STALE | No point cloud received yet, for at most `startup_grace_s` after configure. |
+| ERROR | No point cloud for `cloud_timeout_s` ("Lidar data timeout."), or none at all within `startup_grace_s` of configure ("No lidar data since startup.") — lidar unpowered, unplugged, or the rover is not on its subnet. |
 | WARN | Cloud has fewer than `min_points_warn` points (blocked or blinded sensor), or rate < `expected_rate_hz * min_rate_ratio`. |
 | OK | Otherwise. |
 
@@ -79,7 +79,7 @@ pcap` with no `pcap_path`, an `angle_increment` wider than the sweep, …).
 | sensor | `input_type`, `msop_port`, `difop_port`, `host_address`, `group_address`, `min_distance`, `max_distance`, `use_lidar_clock`, `dense_points`, `ts_first_point`, `wait_for_difop`, `start_angle`, `end_angle` |
 | replay | `pcap_path`, `pcap_repeat`, `pcap_rate` |
 | scan | `scan.min_height`, `scan.max_height`, `scan.angle_min`, `scan.angle_max`, `scan.angle_increment`, `scan.scan_time`, `scan.range_min`, `scan.range_max`, `scan.use_inf` |
-| health | `expected_rate_hz`, `min_rate_ratio`, `cloud_timeout_s`, `min_points_warn`, `publish_frequency` |
+| health | `expected_rate_hz`, `min_rate_ratio`, `cloud_timeout_s`, `startup_grace_s`, `min_points_warn`, `publish_frequency` |
 
 ### Differences from the stack this replaces
 
