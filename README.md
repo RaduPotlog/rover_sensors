@@ -83,26 +83,6 @@ colcon test-result --all
 
 Run node tests one at a time: parallel workers make them flaky under the zenoh middleware.
 
-Launch arguments, parameters and troubleshooting are documented in the package READMEs linked
-above.
-
-## Topic contract
-
-The drivers only publish. They never subscribe to platform or autonomy topics and never
-publish TF, so the payload can restart or be replaced without touching the rest of the rover.
-
-| Topic (in `<namespace>`) | Type | Frame | Consumers |
-|--------------------------|------|-------|-----------|
-| `gps/fix` | `sensor_msgs/NavSatFix` | `<ns>/gps_link` | `rover_localization` (`rover_gps_heading_node`, `rover_navsat_transform_node`) |
-| `gps/vel`, `gps/time_reference`, `gps/heading` (HDT only) | | `<ns>/gps_link` | optional |
-| `scan` | `sensor_msgs/LaserScan` | `<ns>/lidar_link` | Nav 2 costmaps |
-| `rslidar_points` | `sensor_msgs/PointCloud2` | `<ns>/lidar_link` | Nav 2 costmaps via `pointcloud_crop_box` |
-| `diagnostics` | `diagnostic_msgs/DiagnosticArray` | | `rover_diag_manager` (`/Rover/GPS`, `/Rover/Lidar`), `IsLidarHealthy`, mission manager |
-
-The diagnostic status names are part of the contract: `rover_gps_node: GPS fix` and
-`rover_rs16_lidar_node: Lidar status`. Both frames come from the platform URDF
-(`rover_ros/rover_description`), published by the platform's `robot_state_publisher`.
-
 ## Related repositories
 
 A complete rover is three repositories, one per container:
