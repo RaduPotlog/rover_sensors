@@ -60,7 +60,13 @@ struct GpsHealthReport
     std::uint64_t fix_count{0};
 };
 
-/** @brief Classifies the GNSS stream: link alive, fix quality, accuracy and message rate. */
+/**
+ * @brief Classifies the GNSS stream: link alive, fix quality, accuracy and message rate.
+ * @details Mirrors rover_rs16_lidar::domain::LidarHealthEvaluator (same HealthLevel values, same
+ *          rate window and timeout logic); a change to one should be checked against the other.
+ *          Sharing the code waits for a third sensor. One deliberate difference: only the lidar
+ *          has a startup grace that turns a stream never seen into an ERROR.
+ */
 class GpsHealthEvaluator
 {
 public:
