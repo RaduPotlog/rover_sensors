@@ -23,3 +23,7 @@ See the repo `README.md` for the topic contract.
 and no hardware. It checks the topic contract: the topics, types and QoS in the repo README table, no TF, and
 no subscriptions to anything the payload doesn't publish. Run it with the rest of the repo tests
 (see the repo `README.md`).
+
+The expected nodes, topics and reliability are written out by hand at the top of the test. When a
+new sensor is added to `rover_sensors.launch.py`, add it there too and enable its `use_<sensor>`
+argument in `generate_test_description()`. Otherwise the test passes without checking it.

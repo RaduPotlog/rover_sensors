@@ -41,6 +41,8 @@ The rules for every driver here, including new ones:
 `rover_sensors_bringup/test/e2e/test_sensors_contract_launch.py` enforces this. It starts both
 drivers through the bringup launch file and fails if any topic, type or QoS above changes, if a
 payload node publishes TF, or if one subscribes to a topic the payload does not publish itself.
+A new sensor must be added to that test's node and topic lists as well as to the table above;
+the lists are the contract, so an unlisted sensor would never be checked.
 
 ## Quick start
 

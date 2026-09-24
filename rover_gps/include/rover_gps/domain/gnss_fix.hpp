@@ -15,6 +15,7 @@
 #ifndef ROVER_GPS_DOMAIN_GNSS_FIX_HPP_
 #define ROVER_GPS_DOMAIN_GNSS_FIX_HPP_
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -47,6 +48,17 @@ struct GnssFix
     // Time the fix was received [s].
     double stamp_s{0.0};
 };
+
+/**
+ * @brief Horizontal 1-sigma position error [m] from the east and north position variances [m^2].
+ * @details The worse of the two axes, so the health thresholds (GpsHealthEvaluator) judge the fix
+ *          by its weakest direction. NaN when that variance is negative, i.e. not a real estimate.
+ */
+inline double horizontalStdFromVariances(double east_variance_m2, double north_variance_m2)
+{
+    const double variance = std::max(east_variance_m2, north_variance_m2);
+    return variance >= 0.0 ? std::sqrt(variance) : std::numeric_limits<double>::quiet_NaN();
+}
 
 }  // namespace rover_gps::domain
 

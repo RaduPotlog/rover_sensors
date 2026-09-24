@@ -14,10 +14,7 @@
 
 #include "rover_gps/infrastructure/gps_msg_conversions.hpp"
 
-#include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <limits>
 
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "sensor_msgs/msg/nav_sat_status.hpp"
@@ -55,10 +52,9 @@ domain::GnssFix toGnssFix(const NavSatFixMsg & msg, double stamp_s)
     fix.stamp_s = stamp_s;
 
     if (msg.position_covariance_type != NavSatFixMsg::COVARIANCE_TYPE_UNKNOWN) {
-        // The worse of the east and north variances.
-        const double variance = std::max(msg.position_covariance[0], msg.position_covariance[4]);
-        fix.horizontal_std_m =
-            variance >= 0.0 ? std::sqrt(variance) : std::numeric_limits<double>::quiet_NaN();
+        // Row-major 3x3 (ENU): [0] is the east variance, [4] the north variance.
+        fix.horizontal_std_m = domain::horizontalStdFromVariances(
+            msg.position_covariance[0], msg.position_covariance[4]);
     }
     return fix;
 }

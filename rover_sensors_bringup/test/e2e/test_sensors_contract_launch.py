@@ -17,7 +17,8 @@ Contract test for the sensor payload, started the way the sensors container star
 
 The payload and the platform are joined only by topics. This test pins that contract down:
 the payload publishes the agreed topics with the agreed types and QoS, never publishes TF, and
-subscribes to nothing it does not publish itself (so never to a platform topic).
+its nodes subscribe to nothing the payload does not publish itself (so never to a platform
+topic; rover_gps_node reading rover_gps_driver's gps/fix is fine).
 
 No sensor is needed. Without data both drivers still come up active and report the missing
 stream through diagnostics, which this test does not look at. Every check is made per payload
@@ -43,6 +44,11 @@ from rclpy.qos import ReliabilityPolicy
 
 NAMESPACE = 'sensors_contract_e2e'
 
+# The lists below are the reviewed contract, written out by hand on purpose rather than
+# discovered from whatever runs. A new sensor package added to rover_sensors.launch.py must add
+# its nodes, topics and reliability here and to the "Topic contract" table in the repo README,
+# and turn its use_<sensor> argument on in generate_test_description(). Otherwise its topics are
+# never contract-checked.
 LIFECYCLE_NODES = ('rover_gps_driver', 'rover_rs16_lidar_node')
 PAYLOAD_NODES = LIFECYCLE_NODES + ('rover_gps_node',)
 
@@ -199,7 +205,9 @@ class TestSensorsContract(unittest.TestCase):
             if topic not in own and topic not in INFRASTRUCTURE_TOPICS
         ]
         self.assertEqual(
-            offenders, [], 'payload nodes must not subscribe to platform (or any foreign) topics')
+            offenders, [],
+            'payload nodes must only subscribe to topics the payload itself publishes, '
+            'never to platform (or any foreign) topics')
 
     def test_publisher_reliability(self):
         payload = set(self._payload_nodes())
