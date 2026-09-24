@@ -28,7 +28,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def env_flag(value):
-    """True for true/1/yes/on (any case): the values usually come straight from balena."""
+    """Evaluate to True for true/1/yes/on (any case): the values usually come from balena."""
     return PythonExpression(["'", value, "'.strip().lower() in ('true', '1', 'yes', 'on')"])
 
 

@@ -15,6 +15,9 @@
   <exec_depend>rover_rs16_lidar</exec_depend>
 
   <test_depend>ament_index_python</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <!-- lint_cmake/xmllint/copyright/flake8/pep257/...; uncrustify is excluded in CMakeLists.txt -->
+  <test_depend>ament_lint_common</test_depend>
   <test_depend>launch_testing</test_depend>
   <test_depend>launch_testing_ament_cmake</test_depend>
   <test_depend>lifecycle_msgs</test_depend>

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <exception>
+#include <future>
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
@@ -24,19 +25,49 @@ int main(int argc, char ** argv)
     rclcpp::init(argc, argv);
 
     const auto logger = rclcpp::get_logger("rover_rs16_lidar");
-    int exit_code = 0;
 
+    std::shared_ptr<rover_rs16_lidar::RoverRs16LidarNode> node;
     try {
         // Construction can throw on an invalid parameter override. The node starts
         // unconfigured; the launch file drives it to active.
-        auto node = std::make_shared<rover_rs16_lidar::RoverRs16LidarNode>("rover_rs16_lidar_node");
+        node = std::make_shared<rover_rs16_lidar::RoverRs16LidarNode>("rover_rs16_lidar_node");
+    } catch (const std::exception & e) {
+        RCLCPP_FATAL_STREAM(logger, "Caught exception: " << e.what());
+        rclcpp::shutdown();
+        return 1;
+    }
 
-        rclcpp::spin(node->get_node_base_interface());
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node->get_node_base_interface());
+
+    // On Ctrl-C, run the lifecycle shutdown transition while the context is still valid, so
+    // on_shutdown() stops the receiver and releases the sockets instead of the destructor doing
+    // it on an active node. The callback runs on rclcpp's signal thread: stop the executor and
+    // wait for spin() to return first, so the transition never races the executor thread.
+    std::promise<void> spin_exited;
+    std::shared_future<void> spin_exited_future = spin_exited.get_future().share();
+    auto context = node->get_node_base_interface()->get_context();
+    const auto pre_shutdown_handle = context->add_pre_shutdown_callback(
+        [&executor, &node, spin_exited_future]() {
+            executor.cancel();
+            spin_exited_future.wait();
+            node->shutdown();
+        });
+
+    int exit_code = 0;
+    try {
+        executor.spin();
     } catch (const std::exception & e) {
         RCLCPP_FATAL_STREAM(logger, "Caught exception: " << e.what());
         exit_code = 1;
     }
+    spin_exited.set_value();
 
+    RCLCPP_INFO(logger, "Shutting down");
+
+    // After Ctrl-C this waits for the callback above to finish; otherwise it runs it.
     rclcpp::shutdown();
+    context->remove_pre_shutdown_callback(pre_shutdown_handle);
+
     return exit_code;
 }

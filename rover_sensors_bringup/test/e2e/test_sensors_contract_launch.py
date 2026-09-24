@@ -63,6 +63,9 @@ EXPECTED_RELIABILITY = {
     'scan': ReliabilityPolicy.BEST_EFFORT,
     'rslidar_points': ReliabilityPolicy.BEST_EFFORT,
     'gps/fix': ReliabilityPolicy.RELIABLE,
+    'gps/vel': ReliabilityPolicy.RELIABLE,
+    'gps/heading': ReliabilityPolicy.RELIABLE,
+    'gps/time_reference': ReliabilityPolicy.RELIABLE,
 }
 
 TF_TOPICS = ('tf', 'tf_static')
