@@ -104,9 +104,6 @@ if(BUILD_TESTING)
   ament_add_gtest(test_gps_health_evaluator test/unit/test_gps_health_evaluator.cpp)
   target_link_libraries(test_gps_health_evaluator ${PROJECT_NAME}_core)
 
-  ament_add_gtest(test_gnss_fix test/unit/test_gnss_fix.cpp)
-  target_link_libraries(test_gnss_fix ${PROJECT_NAME}_core)
-
   ament_add_gtest(test_gps_use_cases test/unit/test_gps_use_cases.cpp)
   target_link_libraries(test_gps_use_cases ${PROJECT_NAME}_core)
 

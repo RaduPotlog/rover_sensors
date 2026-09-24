@@ -18,7 +18,7 @@ logic and lives in `rover_ros/rover_gps_heading`, which consumes this package's 
 
 | Direction | Name | Type |
 |-----------|------|------|
-| sub | `gps/fix` | `sensor_msgs/NavSatFix` (reliable, depth 10, from `rover_gps_driver`) |
+| sub | `gps/fix` | `sensor_msgs/NavSatFix` (sensor-data QoS, from `rover_gps_driver`) |
 | pub | `diagnostics` | hardware id `RoverGps`, task `GPS fix` (`/Rover/GPS` in `diagnostics_agg`) |
 
 The driver also publishes `gps/vel`, `gps/heading` (only if the receiver sends HDT) and

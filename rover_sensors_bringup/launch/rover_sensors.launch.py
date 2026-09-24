@@ -28,7 +28,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def env_flag(value):
-    """Evaluate to True for true/1/yes/on (any case): the values usually come from balena."""
+    """True for true/1/yes/on (any case): the values usually come straight from balena."""
     return PythonExpression(["'", value, "'.strip().lower() in ('true', '1', 'yes', 'on')"])
 
 
@@ -45,7 +45,7 @@ def generate_launch_description():
     declare_log_level_arg = DeclareLaunchArgument(
         "log_level",
         default_value="INFO",
-        choices=["DEBUG", "INFO", "WARN", "ERROR", "FATAL"],
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "FATAL"],
         description="Logging level",
     )
 

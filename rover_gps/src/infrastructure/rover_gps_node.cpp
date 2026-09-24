@@ -95,10 +95,8 @@ void RoverGpsNode::init()
         std::make_shared<infrastructure::Ros2GpsHealthPublisher>(diagnostic_updater_),
         health_thresholds_);
 
-    // Reliable like the driver's publisher (the GNSS exception in ros2_communication.md): a
-    // fix dropped on the local transport would otherwise read as a GNSS rate/timeout fault.
     fix_subscriber_ = create_subscription<infrastructure::NavSatFixMsg>(
-        "gps/fix", rclcpp::QoS(10).reliable(), std::bind(&RoverGpsNode::fixCallback, this, _1));
+        "gps/fix", rclcpp::SensorDataQoS(), std::bind(&RoverGpsNode::fixCallback, this, _1));
 
     tick_timer_ = create_wall_timer(1s, std::bind(&RoverGpsNode::tickCallback, this));
 

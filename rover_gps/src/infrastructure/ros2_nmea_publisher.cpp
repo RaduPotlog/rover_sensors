@@ -24,9 +24,7 @@ Ros2NmeaPublisher::Ros2NmeaPublisher(
 : frame_id_(std::move(frame_id))
 , time_ref_source_(std::move(time_ref_source))
 {
-    // Reliable, not sensor-data: navsat_transform_node subscribes reliably, and a
-    // best-effort publisher never matches a reliable subscriber.
-    const auto qos = rclcpp::QoS(10).reliable();
+    const rclcpp::QoS qos(10);
 
     fix_pub_ = node.create_publisher<NavSatFixMsg>("fix", qos);
     velocity_pub_ = node.create_publisher<TwistStampedMsg>("vel", qos);

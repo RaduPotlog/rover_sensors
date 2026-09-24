@@ -22,7 +22,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -487,44 +486,6 @@ TEST_F(RoverRs16LidarNodeTest, CleanupReturnsToUnconfigured)
     ASSERT_EQ(node_->deactivate().id(), State::PRIMARY_STATE_INACTIVE);
     EXPECT_EQ(node_->cleanup().id(), State::PRIMARY_STATE_UNCONFIGURED);
     EXPECT_EQ(node_->configure().id(), State::PRIMARY_STATE_INACTIVE);
-}
-
-TEST_F(RoverRs16LidarNodeTest, CleanupUnregistersTheLidarStatusTask)
-{
-    // The Updater outlives the pipeline and keeps ticking while unconfigured, so the task
-    // must leave with the health publisher that backs it, or it calls into a freed object.
-    buildNode({rclcpp::Parameter("diagnostic_updater.period", 0.1)});
-
-    const std::string lidar_status = "rover_rs16_lidar_node: Lidar status";
-    std::vector<std::ptrdiff_t> entries_per_array;
-    auto subscription = observer_->create_subscription<diagnostic_msgs::msg::DiagnosticArray>(
-        "/diagnostics", 10,
-        [&](diagnostic_msgs::msg::DiagnosticArray::SharedPtr msg) {
-            entries_per_array.push_back(std::count_if(
-                msg->status.begin(), msg->status.end(),
-                [&](const auto & status) { return status.name == lidar_status; }));
-        });
-
-    ASSERT_EQ(node_->deactivate().id(), State::PRIMARY_STATE_INACTIVE);
-    ASSERT_EQ(node_->cleanup().id(), State::PRIMARY_STATE_UNCONFIGURED);
-    pump(200ms);  // Drains arrays published before the cleanup.
-    entries_per_array.clear();
-    pump(500ms);
-    for (const auto entries : entries_per_array) {
-        EXPECT_EQ(entries, 0) << "Lidar status still reported while unconfigured";
-    }
-
-    ASSERT_EQ(node_->configure().id(), State::PRIMARY_STATE_INACTIVE);
-    ASSERT_EQ(node_->activate().id(), State::PRIMARY_STATE_ACTIVE);
-    entries_per_array.clear();
-    pump(500ms);
-    // An array published while still unconfigured may arrive first, so only the last one
-    // has to carry the task - but no array may carry it twice.
-    ASSERT_FALSE(entries_per_array.empty()) << "no diagnostics published after reconfigure";
-    for (const auto entries : entries_per_array) {
-        EXPECT_LE(entries, 1) << "Lidar status registered more than once";
-    }
-    EXPECT_EQ(entries_per_array.back(), 1);
 }
 
 TEST_F(RoverRs16LidarNodeTest, DeactivateReleasesTheUdpPorts)

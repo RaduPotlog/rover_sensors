@@ -66,13 +66,7 @@ struct LidarHealthReport
     std::uint64_t cloud_count{0};
 };
 
-/**
- * @brief Classifies the point-cloud stream: link alive, publish rate and cloud density.
- * @details Mirrors rover_gps::domain::GpsHealthEvaluator (same HealthLevel values, same rate
- *          window and timeout logic); a change to one should be checked against the other.
- *          Sharing the code waits for a third sensor. One deliberate difference: only this one
- *          has a startup grace (startup_grace_s) that turns a stream never seen into an ERROR.
- */
+/** @brief Classifies the point-cloud stream: link alive, publish rate and cloud density. */
 class LidarHealthEvaluator
 {
 public:
