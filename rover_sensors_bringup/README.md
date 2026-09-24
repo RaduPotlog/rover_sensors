@@ -16,3 +16,10 @@ ros2 launch rover_sensors_bringup rover_sensors.launch.py
 | `log_level` | `INFO` | passed to every driver |
 
 See the repo `README.md` for the topic contract.
+
+## Tests
+
+`test/e2e/test_sensors_contract_launch.py` starts `rover_sensors.launch.py` with both drivers
+and no hardware. It checks the topic contract: the topics, types and QoS in the repo README table, no TF, and
+no subscriptions to anything the payload doesn't publish. Run it with the rest of the repo tests
+(see the repo `README.md`).
