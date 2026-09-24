@@ -28,18 +28,31 @@ namespace rover_rs16_lidar::infrastructure
 
 unsigned char toDiagnosticLevel(domain::HealthLevel level);
 
-/** @brief Reports the point-cloud stream health as the "Lidar status" diagnostic task. */
+/**
+ * @brief Reports the point-cloud stream health as the "Lidar status" diagnostic task.
+ * @details The task is registered with a raw `this` and removed again on destruction: the
+ *          Updater outlives every configure/cleanup cycle and keeps ticking in between.
+ */
 class Ros2LidarHealthPublisher : public domain::LidarHealthPublisherPort
 {
 public:
+    /** Downstream consumers match "<node name>: Lidar status"; do not rename. */
+    static constexpr const char * kTaskName = "Lidar status";
+
     explicit Ros2LidarHealthPublisher(
         const std::shared_ptr<diagnostic_updater::Updater> & diagnostic_updater);
+
+    ~Ros2LidarHealthPublisher() override;
+
+    Ros2LidarHealthPublisher(const Ros2LidarHealthPublisher &) = delete;
+    Ros2LidarHealthPublisher & operator=(const Ros2LidarHealthPublisher &) = delete;
 
     void publish(const domain::LidarHealthReport & report) override;
 
 private:
     void diagnose(diagnostic_updater::DiagnosticStatusWrapper & status);
 
+    std::weak_ptr<diagnostic_updater::Updater> diagnostic_updater_;
     std::optional<domain::LidarHealthReport> report_;
 };
 

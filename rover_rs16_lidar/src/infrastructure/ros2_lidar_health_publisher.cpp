@@ -39,8 +39,17 @@ unsigned char toDiagnosticLevel(domain::HealthLevel level)
 
 Ros2LidarHealthPublisher::Ros2LidarHealthPublisher(
     const std::shared_ptr<diagnostic_updater::Updater> & diagnostic_updater)
+: diagnostic_updater_(diagnostic_updater)
 {
-    diagnostic_updater->add("Lidar status", this, &Ros2LidarHealthPublisher::diagnose);
+    diagnostic_updater->add(kTaskName, this, &Ros2LidarHealthPublisher::diagnose);
+}
+
+Ros2LidarHealthPublisher::~Ros2LidarHealthPublisher()
+{
+    // Under the Updater's lock, so an update() in flight finishes before this object goes.
+    if (const auto diagnostic_updater = diagnostic_updater_.lock()) {
+        diagnostic_updater->removeByName(kTaskName);
+    }
 }
 
 void Ros2LidarHealthPublisher::publish(const domain::LidarHealthReport & report)

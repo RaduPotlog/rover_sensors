@@ -100,6 +100,8 @@ private:
     double publish_frequency_{1.0};
     SourceFactory source_factory_;
 
+    // Declared before monitor_lidar_ so it outlives it: the health publisher that use case
+    // owns unregisters its diagnostic task from this Updater when destroyed.
     std::shared_ptr<diagnostic_updater::Updater> diagnostic_updater_;
     std::shared_ptr<application::MonitorLidarUseCase> monitor_lidar_;
     std::shared_ptr<infrastructure::Ros2PointCloudPublisher> cloud_publisher_;
