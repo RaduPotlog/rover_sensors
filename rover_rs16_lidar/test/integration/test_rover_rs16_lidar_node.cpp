@@ -279,7 +279,8 @@ TEST_F(RoverRs16LidarNodeTest, PublishesThePointCloudAFrameProduces)
         "/rslidar_points", rclcpp::SensorDataQoS(),
         [&received](sensor_msgs::msg::PointCloud2::SharedPtr msg) { received = msg; });
 
-    pump(300ms);
+    // The publisher skips clouds nobody subscribes to, so wait until it sees this one.
+    ASSERT_TRUE(pumpUntil([this] { return node_->count_subscribers("/rslidar_points") > 0; }));
     source_->emit(sampleCloud());
     ASSERT_TRUE(pumpUntil([&received] { return received != nullptr; }));
 
@@ -429,7 +430,8 @@ TEST_F(RoverRs16LidarNodeTest, SurvivesADriverError)
         "/rslidar_points", rclcpp::SensorDataQoS(),
         [&received](sensor_msgs::msg::PointCloud2::SharedPtr msg) { received = msg; });
 
-    pump(300ms);
+    // The publisher skips clouds nobody subscribes to, so wait until it sees this one.
+    ASSERT_TRUE(pumpUntil([this] { return node_->count_subscribers("/rslidar_points") > 0; }));
     source_->emit(sampleCloud());
     EXPECT_TRUE(pumpUntil([&received] { return received != nullptr; }));
 }
@@ -456,7 +458,8 @@ TEST_F(RoverRs16LidarNodeTest, DeactivateStopsAndDropsTheSource)
         "/rslidar_points", rclcpp::SensorDataQoS(),
         [&received](sensor_msgs::msg::PointCloud2::SharedPtr msg) { received = msg; });
 
-    pump(300ms);
+    // The publisher skips clouds nobody subscribes to, so wait until it sees this one.
+    ASSERT_TRUE(pumpUntil([this] { return node_->count_subscribers("/rslidar_points") > 0; }));
     source_->emit(sampleCloud());
     EXPECT_TRUE(pumpUntil([&received] { return received != nullptr; }))
         << "no cloud after a deactivate/activate cycle";

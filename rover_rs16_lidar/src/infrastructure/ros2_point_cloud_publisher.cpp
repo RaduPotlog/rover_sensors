@@ -73,6 +73,13 @@ Ros2PointCloudPublisher::Ros2PointCloudPublisher(
 
 void Ros2PointCloudPublisher::publish(const domain::PointCloudFrame & cloud)
 {
+    // Nothing on the rover subscribes in the default laserscan mode (the scan projection runs
+    // in-process), so skip the ~0.5 MB copy per revolution. The count includes intra-process
+    // subscribers, and a subscriber that appears gets the next revolution.
+    if (publisher_->get_subscription_count() == 0) {
+        return;
+    }
+
     // Swapped on purpose: the driver counts height as laser channels, but every existing
     // consumer has seen these the other way round since rslidar_sdk did the same swap.
     message_.width = cloud.height;
