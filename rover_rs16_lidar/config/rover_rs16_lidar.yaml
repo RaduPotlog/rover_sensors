@@ -48,6 +48,25 @@
       range_min: 0.2
       range_max: 20.0        # costmap-sized, not the sensor's 100 m
       use_inf: true
+      # Parts of the rover inside the slice, left out of the scan (not the point cloud).
+      # Boxes are axis-aligned in the lidar's own frame [m], so they move with the lidar:
+      # re-measure after moving the lidar or its mount, with the rover turning in place:
+      #   ros2 run rover_rs16_lidar measure_self_filter.py --ros-args -r __ns:=/rover
+      # and paste its output here. Unset = no filtering.
+      #
+      # Measured 2026-09-26 on the original mount: the support post, ~0.39 m to the lidar's
+      # left at bearing 1.54-1.72 rad. Unfiltered it was marked as a lethal obstacle on the
+      # footprint edge ("Goal was in lethal cost", MPPI "Optimizer fail to compute path").
+      # The lidar is being re-mounted, so it is left disabled until re-measured:
+      # self_filter:
+      #   boxes: [lidar_support]
+      #   lidar_support:
+      #     min_x: -0.10
+      #     max_x: 0.08
+      #     min_y: 0.33
+      #     max_y: 0.47
+      #     min_z: -0.25
+      #     max_z: 0.25
 
     # --- health diagnostics ------------------------------------------------------------
     expected_rate_hz: 10.0

@@ -30,7 +30,8 @@ namespace rover_rs16_lidar::domain
  *          inside a horizontal band, bin them by bearing, and report the closest return per
  *          bin. No transform is applied - the cloud is already in the sensor frame and that
  *          is the frame the scan is published in, which is exactly what the old node's
- *          target_frame did.
+ *          target_frame did. Points inside a self-filter box are the rover itself and are
+ *          dropped before binning, so they can never be a bin's closest return.
  */
 class ScanProjector
 {
@@ -45,6 +46,8 @@ public:
     LaserScanFrame project(const PointCloudFrame & cloud) const;
 
 private:
+    bool isSelf(const LidarPoint & point) const;
+
     ScanSettings settings_;
     std::size_t bin_count_{0};
     float empty_bin_value_{0.0F};

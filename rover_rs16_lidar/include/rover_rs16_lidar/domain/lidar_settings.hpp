@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace rover_rs16_lidar::domain
 {
@@ -63,6 +64,36 @@ struct SensorSettings
     float pcap_rate{1.0F};
 };
 
+/**
+ * @brief A box, in the lidar's own frame, whose returns are the rover itself.
+ * @details The scan slice can take in parts of the rover that sit within the RS16's field of
+ *          view. On Rover A1 that is the lidar's support post, about 0.4 m to the lidar's left:
+ *          the costmaps marked it as a lethal obstacle on the footprint edge, where Nav 2's
+ *          footprint clearing does not reliably reach, so goals near the rover read as
+ *          occupied and MPPI saw every trajectory as a collision. Axis-aligned in the sensor
+ *          frame because that is the frame the cloud arrives in - no TF is involved, and a box
+ *          moves with the lidar. Re-measure it (scripts/measure_self_filter.py) whenever the
+ *          lidar or its mount moves.
+ */
+struct SelfFilterBox
+{
+    /// Parameter namespace of the box: scan.self_filter.<name>.min_x and so on.
+    std::string name;
+    double min_x{0.0};
+    double max_x{0.0};
+    double min_y{0.0};
+    double max_y{0.0};
+    double min_z{0.0};
+    double max_z{0.0};
+
+    /** @brief True when the point is inside the box, faces included. */
+    bool contains(double x, double y, double z) const
+    {
+        return x >= min_x && x <= max_x && y >= min_y && y <= max_y && z >= min_z &&
+               z <= max_z;
+    }
+};
+
 /** @brief The horizontal slice published as a LaserScan for the Nav 2 costmaps. */
 struct ScanSettings
 {
@@ -78,7 +109,16 @@ struct ScanSettings
     double range_max{20.0};
     /// True reports a beam with no return as +inf, false as range_max + 1.
     bool use_inf{true};
+    /// Returns inside any of these are the rover itself and are left out of the scan. The
+    /// published point cloud is not filtered.
+    std::vector<SelfFilterBox> self_filter_boxes;
 };
+
+/**
+ * @brief Rejects a box that could not filter anything sensible.
+ * @throws std::invalid_argument naming the box and the offending bound.
+ */
+void validateSelfFilterBox(const SelfFilterBox & box);
 
 /** @brief Everything the node is configured with, already validated. */
 struct LidarSettings

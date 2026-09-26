@@ -15,6 +15,7 @@
 #include "rover_rs16_lidar/domain/lidar_settings.hpp"
 
 #include <cmath>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -32,6 +33,20 @@ void require(bool condition, const std::string & message)
 }
 
 }  // namespace
+
+void validateSelfFilterBox(const SelfFilterBox & box)
+{
+    require(!box.name.empty(), "scan self-filter box names must not be empty.");
+
+    const std::string prefix = "scan self-filter box '" + box.name + "': ";
+    const bool finite = std::isfinite(box.min_x) && std::isfinite(box.max_x) &&
+                        std::isfinite(box.min_y) && std::isfinite(box.max_y) &&
+                        std::isfinite(box.min_z) && std::isfinite(box.max_z);
+    require(finite, prefix + "every bound (min_x .. max_z) must be set to a finite value.");
+    require(box.min_x < box.max_x, prefix + "min_x must be below max_x.");
+    require(box.min_y < box.max_y, prefix + "min_y must be below max_y.");
+    require(box.min_z < box.max_z, prefix + "min_z must be below max_z.");
+}
 
 LidarInputType parseInputType(const std::string & value)
 {
@@ -82,6 +97,14 @@ void LidarSettings::validate(const LidarSettings & settings)
     require(scan.range_min >= 0.0, "scan range_min must not be negative.");
     require(scan.range_min < scan.range_max, "scan range_min must be below range_max.");
     require(scan.scan_time > 0.0, "scan_time must be positive.");
+
+    std::set<std::string> box_names;
+    for (const auto & box : scan.self_filter_boxes) {
+        validateSelfFilterBox(box);
+        require(
+            box_names.insert(box.name).second,
+            "scan self-filter box '" + box.name + "' is listed twice.");
+    }
 }
 
 }  // namespace rover_rs16_lidar::domain

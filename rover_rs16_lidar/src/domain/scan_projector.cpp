@@ -37,6 +37,9 @@ ScanProjector::ScanProjector(ScanSettings settings) : settings_(std::move(settin
     if (settings_.range_min < 0.0 || settings_.range_min >= settings_.range_max) {
         throw std::invalid_argument("ScanProjector: range_min must be in [0, range_max).");
     }
+    for (const auto & box : settings_.self_filter_boxes) {
+        validateSelfFilterBox(box);
+    }
 
     const double span = settings_.angle_max - settings_.angle_min;
     bin_count_ = static_cast<std::size_t>(std::ceil(span / settings_.angle_increment));
@@ -72,6 +75,9 @@ LaserScanFrame ScanProjector::project(const PointCloudFrame & cloud) const
         if (point.z < settings_.min_height || point.z > settings_.max_height) {
             continue;
         }
+        if (isSelf(point)) {
+            continue;
+        }
 
         const double range = std::hypot(static_cast<double>(point.x), static_cast<double>(point.y));
         if (range < settings_.range_min || range > settings_.range_max) {
@@ -100,6 +106,16 @@ LaserScanFrame ScanProjector::project(const PointCloudFrame & cloud) const
     }
 
     return scan;
+}
+
+bool ScanProjector::isSelf(const LidarPoint & point) const
+{
+    for (const auto & box : settings_.self_filter_boxes) {
+        if (box.contains(point.x, point.y, point.z)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace rover_rs16_lidar::domain

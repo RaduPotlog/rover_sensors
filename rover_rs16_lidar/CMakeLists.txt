@@ -82,6 +82,8 @@ install(DIRECTORY include/ DESTINATION include)
 install(TARGETS ${PROJECT_NAME}_node DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
+# ros2 run rover_rs16_lidar measure_self_filter.py - measures scan.self_filter boxes.
+install(PROGRAMS scripts/measure_self_filter.py DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   # Standard ament style/lint gate (cpplint, cppcheck, lint_cmake, xmllint, copyright, ...), as
@@ -114,6 +116,9 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_lidar_settings test/unit/test_lidar_settings.cpp)
   target_link_libraries(test_lidar_settings ${PROJECT_NAME}_core)
+
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_measure_self_filter test/test_measure_self_filter.py)
 
   ament_add_gtest(test_scan_projector test/unit/test_scan_projector.cpp)
   target_link_libraries(test_scan_projector ${PROJECT_NAME}_core)

@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -27,6 +28,7 @@ using rover_rs16_lidar::domain::LidarPoint;
 using rover_rs16_lidar::domain::PointCloudFrame;
 using rover_rs16_lidar::domain::ScanProjector;
 using rover_rs16_lidar::domain::ScanSettings;
+using rover_rs16_lidar::domain::SelfFilterBox;
 
 constexpr double kPi = 3.141592653589793;
 
@@ -54,6 +56,20 @@ PointCloudFrame cloudOf(std::initializer_list<LidarPoint> points)
     cloud.height = 1;
     cloud.timestamp_s = 1234.5;
     return cloud;
+}
+
+/// Roughly Rover A1's lidar support post as measured 2026-09-26: ~0.4 m to the lidar's left.
+SelfFilterBox supportPostBox()
+{
+    SelfFilterBox box;
+    box.name = "lidar_support";
+    box.min_x = -0.10;
+    box.max_x = 0.08;
+    box.min_y = 0.33;
+    box.max_y = 0.47;
+    box.min_z = -0.25;
+    box.max_z = 0.25;
+    return box;
 }
 
 /// Bin a bearing falls into, using the projector's own arithmetic.
@@ -262,4 +278,92 @@ TEST(ScanProjector, ReusesNothingBetweenProjections)
     for (const float range : second.ranges) {
         EXPECT_TRUE(std::isinf(range));
     }
+}
+
+TEST(ScanProjector, DropsReturnsInsideASelfFilterBox)
+{
+    auto settings = quarterTurnSettings();
+    settings.self_filter_boxes = {supportPostBox()};
+    const ScanProjector projector{settings};
+
+    const auto scan = projector.project(cloudOf({LidarPoint{0.0F, 0.39F, 0.0F, 1.0F}}));
+
+    for (const float range : scan.ranges) {
+        EXPECT_TRUE(std::isinf(range));
+    }
+}
+
+TEST(ScanProjector, ASelfReturnNoLongerHidesAnObstacleBehindIt)
+{
+    // Closest-return binning reported the post and dropped anything further out on the same
+    // bearing; with the post filtered, the real obstacle behind it comes through.
+    auto settings = quarterTurnSettings();
+    settings.self_filter_boxes = {supportPostBox()};
+    const ScanProjector projector{settings};
+
+    const auto scan = projector.project(cloudOf({
+        LidarPoint{0.0F, 0.39F, 0.0F, 1.0F},  // the post
+        LidarPoint{0.0F, 2.0F, 0.0F, 1.0F},   // a wall behind it, same bearing
+    }));
+
+    EXPECT_FLOAT_EQ(scan.ranges[binOf(settings, kPi / 2.0)], 2.0F);
+}
+
+TEST(ScanProjector, KeepsReturnsOutsideEverySelfFilterBox)
+{
+    auto settings = quarterTurnSettings();
+    auto second = supportPostBox();
+    second.name = "rear_mast";
+    second.min_x = -0.60;
+    second.max_x = -0.50;
+    settings.self_filter_boxes = {supportPostBox(), second};
+    const ScanProjector projector{settings};
+
+    const auto scan = projector.project(cloudOf({
+        LidarPoint{-0.55F, 0.40F, 0.0F, 1.0F},  // inside the second box
+        LidarPoint{0.0F, 0.50F, 0.0F, 1.0F},    // just past the first box's max_y
+        LidarPoint{0.0F, -0.39F, 0.0F, 1.0F},   // the mirror image, on the other side
+    }));
+
+    // Only the two points outside every box and inside the height band are reported.
+    EXPECT_FLOAT_EQ(scan.ranges[binOf(settings, kPi / 2.0)], 0.5F);
+    EXPECT_NEAR(scan.ranges[binOf(settings, -kPi / 2.0)], 0.39F, 1e-6);
+    const auto hits = std::count_if(
+        scan.ranges.begin(), scan.ranges.end(), [](float range) { return std::isfinite(range); });
+    EXPECT_EQ(hits, 2);
+}
+
+TEST(ScanProjector, TreatsTheBoxFacesAsInside)
+{
+    // Bounds exactly representable as float, so a point built from them sits exactly on the
+    // faces rather than a rounding step to either side.
+    SelfFilterBox box;
+    box.name = "exact";
+    box.min_x = -0.125;
+    box.max_x = 0.0625;
+    box.min_y = 0.375;
+    box.max_y = 0.5;
+    box.min_z = -0.25;
+    box.max_z = 0.25;
+    auto settings = quarterTurnSettings();
+    settings.self_filter_boxes = {box};
+    const ScanProjector projector{settings};
+
+    const auto scan = projector.project(cloudOf({
+        LidarPoint{0.0625F, 0.5F, 0.25F, 1.0F},
+        LidarPoint{-0.125F, 0.375F, -0.25F, 1.0F},
+    }));
+
+    for (const float range : scan.ranges) {
+        EXPECT_TRUE(std::isinf(range));
+    }
+}
+
+TEST(ScanProjector, RejectsAMalformedSelfFilterBox)
+{
+    auto settings = quarterTurnSettings();
+    auto box = supportPostBox();
+    box.min_y = box.max_y;
+    settings.self_filter_boxes = {box};
+    EXPECT_THROW(ScanProjector{settings}, std::invalid_argument);
 }

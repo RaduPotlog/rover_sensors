@@ -333,6 +333,49 @@ TEST_F(RoverRs16LidarNodeTest, PublishesTheFlattenedScan)
     EXPECT_EQ(hits, 3);
 }
 
+TEST_F(RoverRs16LidarNodeTest, LeavesSelfFilterBoxesOutOfTheScan)
+{
+    // A box around the sample cloud's (0, 4, 0.1) return.
+    buildNode({rclcpp::Parameter("scan.self_filter.boxes", std::vector<std::string>{"post"}),
+               rclcpp::Parameter("scan.self_filter.post.min_x", -0.5),
+               rclcpp::Parameter("scan.self_filter.post.max_x", 0.5),
+               rclcpp::Parameter("scan.self_filter.post.min_y", 3.5),
+               rclcpp::Parameter("scan.self_filter.post.max_y", 4.5),
+               rclcpp::Parameter("scan.self_filter.post.min_z", -0.25),
+               rclcpp::Parameter("scan.self_filter.post.max_z", 0.25)});
+
+    sensor_msgs::msg::LaserScan::SharedPtr scan;
+    sensor_msgs::msg::PointCloud2::SharedPtr cloud;
+    auto scan_subscription = observer_->create_subscription<sensor_msgs::msg::LaserScan>(
+        "/scan", rclcpp::SensorDataQoS(),
+        [&scan](sensor_msgs::msg::LaserScan::SharedPtr msg) { scan = msg; });
+    auto cloud_subscription = observer_->create_subscription<sensor_msgs::msg::PointCloud2>(
+        "/rslidar_points", rclcpp::SensorDataQoS(),
+        [&cloud](sensor_msgs::msg::PointCloud2::SharedPtr msg) { cloud = msg; });
+
+    pump(300ms);
+    source_->emit(sampleCloud());
+    ASSERT_TRUE(pumpUntil([&scan, &cloud] { return scan != nullptr && cloud != nullptr; }));
+
+    const auto hits = std::count_if(
+        scan->ranges.begin(), scan->ranges.end(),
+        [](float range) { return std::isfinite(range); });
+    EXPECT_EQ(hits, 2);
+    // The raw cloud keeps every point; only the scan is filtered.
+    EXPECT_EQ(cloud->width * cloud->height, 3U);
+}
+
+TEST_F(RoverRs16LidarNodeTest, RejectsASelfFilterBoxWithMissingBounds)
+{
+    EXPECT_THROW(
+        std::make_shared<RoverRs16LidarNode>(
+            "rover_rs16_lidar_node", "/",
+            optionsWith({rclcpp::Parameter(
+                             "scan.self_filter.boxes", std::vector<std::string>{"post"}),
+                         rclcpp::Parameter("scan.self_filter.post.min_x", -0.5)})),
+        std::invalid_argument);
+}
+
 TEST_F(RoverRs16LidarNodeTest, PublishesNoScanWhenPublishScanIsOff)
 {
     buildNode({rclcpp::Parameter("publish_scan", false)});

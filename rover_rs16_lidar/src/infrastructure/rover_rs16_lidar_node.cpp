@@ -19,9 +19,11 @@
 #include <cstdint>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 
@@ -206,6 +208,36 @@ void RoverRs16LidarNode::declareParameters()
     scan.use_inf = declare_parameter(
         "scan.use_inf", scan_defaults.use_inf,
         describe("True reports a beam with no return as +inf, false as range_max + 1."));
+
+    // A ROS parameter cannot hold a list of structs, so boxes are named in a list and each
+    // name owns a parameter namespace - the idiom pointcloud_crop_box uses for its boxes.
+    const auto box_names = declare_parameter(
+        "scan.self_filter.boxes", std::vector<std::string>{},
+        describe("Boxes, in the lidar frame, whose returns are the rover itself and are left out "
+                 "of the scan. Each name needs scan.self_filter.<name>.{min,max}_{x,y,z} [m]."));
+    for (const auto & name : box_names) {
+        domain::SelfFilterBox box;
+        box.name = name;
+        // An empty name would make an invalid parameter name; validate() rejects it by name.
+        if (!name.empty()) {
+            // NaN rather than a default: a bound that is not configured must fail validation,
+            // not silently become a zero-size or origin-centred box.
+            const auto bound = [this, &name](const std::string & field) {
+                return declare_parameter(
+                    "scan.self_filter." + name + "." + field,
+                    std::numeric_limits<double>::quiet_NaN(),
+                    describe("Self-filter box '" + name + "', " + field +
+                             " in the lidar frame [m]."));
+            };
+            box.min_x = bound("min_x");
+            box.max_x = bound("max_x");
+            box.min_y = bound("min_y");
+            box.max_y = bound("max_y");
+            box.min_z = bound("min_z");
+            box.max_z = bound("max_z");
+        }
+        scan.self_filter_boxes.push_back(box);
+    }
 
     health_thresholds_.expected_rate_hz = declare_parameter(
         "expected_rate_hz", health_defaults.expected_rate_hz,

@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -25,11 +26,25 @@ namespace
 using rover_rs16_lidar::domain::LidarInputType;
 using rover_rs16_lidar::domain::LidarSettings;
 using rover_rs16_lidar::domain::parseInputType;
+using rover_rs16_lidar::domain::SelfFilterBox;
 
 /// Defaults are what config/rover_rs16_lidar.yaml ships, so they must pass validation.
 LidarSettings validSettings()
 {
     return LidarSettings{};
+}
+
+SelfFilterBox validBox(const std::string & name)
+{
+    SelfFilterBox box;
+    box.name = name;
+    box.min_x = -0.10;
+    box.max_x = 0.08;
+    box.min_y = 0.33;
+    box.max_y = 0.47;
+    box.min_z = -0.25;
+    box.max_z = 0.25;
+    return box;
 }
 
 }  // namespace
@@ -147,5 +162,43 @@ TEST(LidarSettingsValidate, RejectsAScanThatCannotBeBinned)
 
     settings = validSettings();
     settings.scan.scan_time = 0.0;
+    EXPECT_THROW(LidarSettings::validate(settings), std::invalid_argument);
+}
+
+TEST(LidarSettingsValidate, AcceptsSelfFilterBoxes)
+{
+    auto settings = validSettings();
+    settings.scan.self_filter_boxes = {validBox("lidar_support"), validBox("rear_mast")};
+    EXPECT_NO_THROW(LidarSettings::validate(settings));
+}
+
+TEST(LidarSettingsValidate, RejectsAMalformedSelfFilterBox)
+{
+    auto settings = validSettings();
+    settings.scan.self_filter_boxes = {validBox("")};
+    EXPECT_THROW(LidarSettings::validate(settings), std::invalid_argument);
+
+    // An unset bound arrives from the node as NaN.
+    settings = validSettings();
+    auto unset = validBox("lidar_support");
+    unset.max_z = std::numeric_limits<double>::quiet_NaN();
+    settings.scan.self_filter_boxes = {unset};
+    EXPECT_THROW(LidarSettings::validate(settings), std::invalid_argument);
+
+    for (const auto axis : {'x', 'y', 'z'}) {
+        auto inverted = validBox("lidar_support");
+        double & low = axis == 'x' ? inverted.min_x : axis == 'y' ? inverted.min_y : inverted.min_z;
+        double & high = axis == 'x' ? inverted.max_x : axis == 'y' ? inverted.max_y : inverted.max_z;
+        low = high;
+        settings = validSettings();
+        settings.scan.self_filter_boxes = {inverted};
+        EXPECT_THROW(LidarSettings::validate(settings), std::invalid_argument) << axis;
+    }
+}
+
+TEST(LidarSettingsValidate, RejectsADuplicateSelfFilterBoxName)
+{
+    auto settings = validSettings();
+    settings.scan.self_filter_boxes = {validBox("lidar_support"), validBox("lidar_support")};
     EXPECT_THROW(LidarSettings::validate(settings), std::invalid_argument);
 }

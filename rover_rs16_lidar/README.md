@@ -79,7 +79,35 @@ pcap` with no `pcap_path`, an `angle_increment` wider than the sweep, …).
 | sensor | `input_type`, `msop_port`, `difop_port`, `host_address`, `group_address`, `min_distance`, `max_distance`, `use_lidar_clock`, `dense_points`, `ts_first_point`, `wait_for_difop`, `start_angle`, `end_angle` |
 | replay | `pcap_path`, `pcap_repeat`, `pcap_rate` |
 | scan | `scan.min_height`, `scan.max_height`, `scan.angle_min`, `scan.angle_max`, `scan.angle_increment`, `scan.scan_time`, `scan.range_min`, `scan.range_max`, `scan.use_inf` |
+| scan self-filter | `scan.self_filter.boxes` (names), `scan.self_filter.<name>.{min,max}_{x,y,z}` |
 | health | `expected_rate_hz`, `min_rate_ratio`, `cloud_timeout_s`, `startup_grace_s`, `min_points_warn`, `publish_frequency` |
+
+### Scan self-filter — the rover's own parts
+
+The scan slice can take in parts of the rover itself. On Rover A1 the lidar's support post sits
+about 0.39 m to the lidar's left, on the edge of the Nav 2 footprint. Nav 2's footprint clearing
+does not reliably reach a mark exactly on the edge, so the costmaps kept a lethal obstacle
+glued to the rover: goals close to it read as occupied ("Goal was in lethal cost"), and MPPI,
+which checks the full footprint, saw every trajectory as a collision ("Optimizer fail to
+compute path"). Because a bin reports its closest return, the post also hid anything behind
+it on the same bearing.
+
+`scan.self_filter` lists boxes whose returns are left out of the **scan**. The point cloud is
+published unfiltered. Boxes are axis-aligned **in the lidar's own frame**, which is the frame
+the cloud arrives in, so no TF is needed. A box moves with the lidar, so re-measure after
+moving the lidar or its mount:
+
+```bash
+# In open space, then turn the rover in place (drive UI or RC) through at least 270 deg:
+ros2 run rover_rs16_lidar measure_self_filter.py --ros-args -r __ns:=/<ns>
+```
+
+The tool bins the raw cloud near the lidar into 5 cm voxels. Something in the room sweeps
+through the lidar frame as the rover turns, while a part of the rover stays put. A voxel counts
+as the rover only when it is hit through at least 75 % of the turn's 30° heading steps. A wall
+close by lights up a whole ring of voxels, but each one only while the rover faces it. The
+tool prints a `self_filter:` block to paste under `scan:`. A box that is not fully configured
+(a missing bound, an inverted or empty range, a duplicate name) is rejected at construction.
 
 ### Differences from the stack this replaces
 
@@ -183,8 +211,10 @@ colcon build --packages-select rover_rs16_lidar --cmake-args -DBUILD_TESTING=ON
 colcon test --packages-select rover_rs16_lidar && colcon test-result --all
 ```
 
-Unit tests cover the health rules, the settings validation and the scan projection against
-`rover_rs16_lidar_core` alone (no ROS, no hardware). The integration test builds the real node
+Unit tests cover the health rules, the settings validation and the scan projection (self-filter
+included) against `rover_rs16_lidar_core` alone (no ROS, no hardware). `test_measure_self_filter`
+runs the measurement tool's voting on a synthetic turn: it must find the post and not a wall
+next to the rover, and refuse to judge without a turn. The integration test builds the real node
 with a stub `LidarSourcePort` and asserts the published cloud layout, the scan, the
 `publish_scan` switch, the diagnostic name and level, that the source is stopped on
 shutdown, and the lifecycle: deactivate drops the source, a failed start leaves the node

@@ -24,8 +24,13 @@
   <exec_depend>launch_ros</exec_depend>
   <!-- nav2_common.launch.ReplaceString resolves <namespace> in the config file -->
   <exec_depend>nav2_common</exec_depend>
+  <!-- scripts/measure_self_filter.py -->
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>rclpy</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <!-- cpplint/cppcheck/lint_cmake/xmllint/copyright/flake8/...; uncrustify is excluded in CMakeLists.txt -->
   <test_depend>ament_lint_common</test_depend>
