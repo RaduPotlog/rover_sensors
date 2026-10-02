@@ -5,7 +5,7 @@ RoboSense **RS16** LiDAR for Rover A1, in one package and one process: the drive
 
 This replaces the old `rover_lidar` + `rover_rslidar_sdk` pair. The point cloud, the scan and
 the diagnostics are published on exactly the same topics, in the same frame, with the same
-message layout, so `rover_navigation`, `pointcloud_crop_box` and `rover_gazebo` are unaffected.
+message layout, so `rover_navigation` and `rover_gazebo` are unaffected.
 
 This is the hardware counterpart of the simulated lidar: `rover_gazebo` bridges a `gpu_lidar`
 onto `<namespace>/scan`, and this package publishes the same topic from the real sensor, so

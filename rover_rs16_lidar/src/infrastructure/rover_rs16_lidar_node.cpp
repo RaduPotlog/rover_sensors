@@ -210,7 +210,7 @@ void RoverRs16LidarNode::declareParameters()
         describe("True reports a beam with no return as +inf, false as range_max + 1."));
 
     // A ROS parameter cannot hold a list of structs, so boxes are named in a list and each
-    // name owns a parameter namespace - the idiom pointcloud_crop_box uses for its boxes.
+    // name owns a parameter namespace.
     const auto box_names = declare_parameter(
         "scan.self_filter.boxes", std::vector<std::string>{},
         describe("Boxes, in the lidar frame, whose returns are the rover itself and are left out "

@@ -66,7 +66,7 @@ Ros2PointCloudPublisher::Ros2PointCloudPublisher(
     message_.header.frame_id = frame_id_;
 
     // Sensor-data QoS: a stale revolution is worth less than a fresh one, and every consumer
-    // in the rover (Nav 2 costmaps, pointcloud_crop_box) subscribes best-effort.
+    // in the rover (RViz, rosbag) subscribes best-effort.
     publisher_ = node.create_publisher<sensor_msgs::msg::PointCloud2>(
         topic, rclcpp::SensorDataQoS().keep_last(queue_size));
 }
